@@ -1,5 +1,5 @@
 """
-Configuration module for GreenCast backend
+Configuration module for SunShift backend
 """
 import os
 from pathlib import Path
@@ -40,7 +40,7 @@ class Config:
     USE_SYNTHETIC_DATA = os.getenv("USE_SYNTHETIC_DATA", "True").lower() == "true"
     
     # Database
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./greencast.db")
+    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./sunshift.db")
     
     # API Settings
     API_HOST = os.getenv("API_HOST", "0.0.0.0")

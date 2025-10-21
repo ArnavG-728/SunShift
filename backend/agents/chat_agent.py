@@ -55,7 +55,7 @@ class ChatAgent:
         context_str = self._build_context_string()
         
         prompt = ChatPromptTemplate.from_template(
-            """You are GreenCast AI, an expert assistant for renewable energy forecasting and optimization.
+            """You are SunShift AI, an expert assistant for renewable energy forecasting and optimization.
             
             You have access to the following forecast data and context:
             {context}
@@ -230,7 +230,7 @@ class ChatAgent:
         
         # Model/how questions
         elif 'model' in query_lower or 'how' in query_lower and 'work' in query_lower:
-            return "GreenCast uses a Bidirectional LSTM (Long Short-Term Memory) neural network with 3 layers, batch normalization, and dropout regularization. It analyzes 24-hour sequences of weather data and historical generation to predict future output with high accuracy."
+            return "SunShift uses a Bidirectional LSTM (Long Short-Term Memory) neural network with 3 layers, batch normalization, and dropout regularization. It analyzes 24-hour sequences of weather data and historical generation to predict future output with high accuracy."
         
         # Optimization questions
         elif 'optimize' in query_lower or 'improve' in query_lower or 'better' in query_lower:

@@ -1,5 +1,5 @@
 """
-Utility functions for GreenCast
+Utility functions for SunShift
 """
 from .validators import (
     validate_coordinates,

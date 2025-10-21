@@ -16,7 +16,7 @@ export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Hello! I\'m GreenCast AI, your renewable energy forecasting assistant. I can help you understand energy forecasts, model accuracy, and provide optimization recommendations. What would you like to know?',
+      content: 'Hello! I\'m SunShift AI, your renewable energy forecasting assistant. I can help you understand energy forecasts, model accuracy, and provide optimization recommendations. What would you like to know?',
       timestamp: new Date()
     }
   ])

@@ -1,5 +1,5 @@
 """
-Logging utilities for GreenCast
+Logging utilities for SunShift
 """
 import logging
 import sys
@@ -38,7 +38,7 @@ def setup_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     logger.addHandler(console_handler)
     
     # File handler
-    log_file = config.LOGS_DIR / f"greencast_{datetime.now().strftime('%Y%m%d')}.log"
+    log_file = config.LOGS_DIR / f"sunshift_{datetime.now().strftime('%Y%m%d')}.log"
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(level)
     file_format = logging.Formatter(

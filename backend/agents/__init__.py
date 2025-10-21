@@ -1,5 +1,5 @@
 """
-LangGraph Agents for GreenCast
+LangGraph Agents for SunShift
 """
 from .data_agent import DataAgent
 from .feature_agent import FeatureAgent

@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=${limit}&addressdetails=1`,
       {
         headers: {
-          'User-Agent': 'GreenCast/1.0 (Solar Energy Forecasting Application)',
+          'User-Agent': 'SunShift/1.0 (Solar Energy Forecasting Application)',
           'Accept': 'application/json',
           'Accept-Language': 'en',
           'Referer': request.headers.get('referer') || 'http://localhost:3000',

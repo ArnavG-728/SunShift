@@ -79,7 +79,7 @@ export const DEFAULT_CONFIG: SystemConfig = {
   alertThreshold: 2.0,
 }
 
-const STORAGE_KEY = 'greencast_user_preferences'
+const STORAGE_KEY = 'sunshift_user_preferences'
 
 /**
  * Load user preferences from localStorage
@@ -146,7 +146,7 @@ export function exportPreferences(): void {
   
   const link = document.createElement('a')
   link.href = url
-  link.download = `greencast-config-${new Date().toISOString().split('T')[0]}.json`
+  link.download = `sunshift-config-${new Date().toISOString().split('T')[0]}.json`
   link.click()
   
   URL.revokeObjectURL(url)
