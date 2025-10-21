@@ -552,20 +552,6 @@ class RealWeatherSolarForecaster:
                     'avg_clouds': float(day_df['clouds'].mean())
                 })
         
-        # Weekly aggregation
-        weekly_data = []
-        for week in range(min(4, len(predictions_df) // 168)):
-            week_start = week * 168
-            week_end = min((week + 1) * 168, len(predictions_df))
-            week_df = predictions_df.iloc[week_start:week_end]
-            
-            if len(week_df) > 0:
-                weekly_data.append({
-                    'week': week + 1,
-                    'total_kwh': float(week_df['predicted_output_kWh'].sum()),
-                    'avg_kwh': float(week_df['predicted_output_kWh'].mean())
-                })
-        
         # Find peak production hour
         peak_hour = predictions_df.loc[predictions_df['predicted_output_kWh'].idxmax()]
         
@@ -573,7 +559,6 @@ class RealWeatherSolarForecaster:
             'status': 'success',
             'hourly_24h': hourly_24h,
             'daily_7d': daily_data,
-            'weekly_4w': weekly_data,
             'metrics': {
                 'total_24h': float(sum(p['predicted_output_kWh'] for p in hourly_24h)),
                 'avg_24h': float(np.mean([p['predicted_output_kWh'] for p in hourly_24h])),

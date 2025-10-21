@@ -1,4 +1,4 @@
-# 🌞 GreenCast - Solar Energy Forecasting Platform
+# ☀️ SunShift - Solar Energy Forecasting Platform
 
 AI-powered solar energy forecasting system with real-time weather integration and smart optimization recommendations.
 
@@ -11,14 +11,15 @@ AI-powered solar energy forecasting system with real-time weather integration an
 cd backend
 python start.py
 ```
-✅ Runs at `http://localhost:8000`
+Server runs at `http://localhost:8000`
 
 ### Frontend
 ```powershell
 cd frontend
+npm install
 npm run dev
 ```
-✅ Runs at `http://localhost:3000`
+Application runs at `http://localhost:3000`
 
 ---
 
@@ -40,24 +41,31 @@ npm install
 
 ### 2. Configure API Keys
 
-Copy `backend/.env.example` to `backend/.env` and add:
+Copy `backend/.env.example` to `backend/.env` and configure:
 ```env
+# Required for real weather data
 OPENWEATHER_API_KEY=your_key_here
-GOOGLE_API_KEY=your_key_here  # Optional for AI chat
+
+# Optional for AI chat features
+GOOGLE_API_KEY=your_gemini_key_here
 ```
+
+**Note:** System works without API keys using fallback data for demonstration.
 
 ---
 
 ## ✨ Features
 
-- 🌍 **Real Weather Data** - OpenWeather API integration
-- 🗺️ **Map-Based Location Selector** - Search cities or drop a pin
-- 🧠 **AI Optimization** - Smart appliance scheduling
-- ⚡ **Multi-Horizon Forecasts** - 24h, 7d, 4w predictions
-- 🔋 **Battery Management** - Charge/discharge optimization
-- 💰 **Financial Tracking** - Savings and ROI calculations
-- 🌱 **Carbon Impact** - Environmental metrics
-- 📱 **Responsive Design** - Works on all devices
+- 🌍 **Real-Time Weather** - Live data from OpenWeather API
+- ☀️ **Solar Irradiance** - Physics-based calculations with NASA POWER API (no key required)
+- 📊 **Multi-Horizon Forecasts** - 24h hourly, 7d daily predictions
+- 💡 **Smart Recommendations** - AI-powered optimization tips
+- 🤖 **AI Assistant** - Chat interface powered by Google Gemini
+- 🔋 **Battery Optimization** - Charge/discharge scheduling recommendations
+- 💰 **Financial Metrics** - Savings and cost calculations
+- 🌱 **Environmental Impact** - CO₂ avoidance tracking
+- 🗺️ **Location Search** - Geocoding search for any location worldwide
+- 📱 **Responsive Design** - Mobile-friendly interface
 
 ---
 
@@ -66,167 +74,177 @@ GOOGLE_API_KEY=your_key_here  # Optional for AI chat
 ```
 Energy_ReGen_v2/
 ├── backend/
-│   ├── agents/              # AI agents
-│   ├── models/              # ML models
-│   ├── utils/               # Validators, calculations
-│   ├── main.py              # FastAPI app
-│   └── start.py             # Startup script ⭐
+│   ├── agents/                      # AI agent modules
+│   │   ├── realtime_data_agent.py      # Weather & solar data fetching
+│   │   ├── enhanced_forecast_agent.py  # LSTM forecasting
+│   │   ├── optimization_agent.py       # Smart recommendations
+│   │   ├── chat_agent.py               # AI chatbot
+│   │   ├── feature_agent.py            # Feature engineering
+│   │   └── insight_agent.py            # AI insights
+│   ├── models/                      # ML models
+│   │   ├── improved_forecaster.py      # LSTM implementation
+│   │   └── saved/                      # Model weights
+│   ├── graph/                       # LangGraph workflow
+│   │   └── workflow.py
+│   ├── utils/                       # Utilities
+│   │   └── validators.py               # Input validation
+│   ├── data/                        # Data storage
+│   ├── config.py                    # Configuration
+│   ├── main.py                      # FastAPI server
+│   ├── real_weather_forecast.py     # Weather-based forecaster
+│   ├── start.py                     # Startup script
+│   └── requirements.txt             # Python dependencies
 │
 └── frontend/
-    ├── app/                 # Next.js pages
-    ├── components/          # React components
-    ├── lib/                 # User preferences
-    └── package.json         # Dependencies
+    ├── app/                         # Next.js app
+    │   ├── page.tsx                    # Main page
+    │   ├── layout.tsx                  # Root layout
+    │   └── globals.css                 # Global styles
+    ├── components/                  # React components
+    │   ├── SystemConfiguration.tsx     # System settings
+    │   ├── RealTimeWeather.tsx         # Live weather display
+    │   ├── SolarMetrics.tsx            # Energy metrics
+    │   ├── SimpleForecastDashboard.tsx # Forecast charts
+    │   ├── SmartRecommendations.tsx    # Optimization tips
+    │   ├── ChatInterface.tsx           # AI chatbot
+    │   └── GreenMetrics.tsx            # Environmental impact
+    ├── lib/                         # Utilities
+    │   └── userPreferences.ts          # Settings management
+    └── package.json                 # Node dependencies
 ```
 
 ---
 
 ## 🎯 Usage
 
-1. **Configure System** - Enter your solar panel specs
-2. **Select Location** - Use map selector or search
-3. **Run Forecast** - Get personalized predictions
-4. **View Smart Tips** - AI-powered recommendations
-5. **Ask AI Assistant** - Get personalized advice
+1. **Configure System** - Set solar panel specifications (size, efficiency, tilt, azimuth)
+2. **Select Location** - Choose from 14 preset cities or enter custom coordinates
+3. **Run Forecast** - Generate energy predictions for 24h/7d
+4. **View Metrics** - Monitor real-time weather, PSH, energy output, savings, CO₂
+5. **Get Smart Tips** - AI-powered recommendations for optimal energy usage
+6. **Chat with AI** - Ask questions about your forecast and system
 
 ---
 
-## 🔧 Tech Stack
-```env
-# For real weather data
-OPENWEATHER_API_KEY=your_key_here
-
-# For AI insights
-GOOGLE_API_KEY=your_gemini_key_here
-```
-
-**Without API keys:** System uses synthetic data for demo purposes.
-
-## 🔑 Key Features
-
-### 1. Real-Time Weather
-- Live data from OpenWeather API
-- Temperature, humidity, wind, clouds
-- **Solar irradiance calculation** (physics-based)
-- Updates every 10 seconds
-
-### 2. Solar Metrics
-- **PSH** (Peak Sun Hours) - Daily solar potential
-- **Energy Output** - Estimated kWh generation
-- **Savings** - Money saved per day
-- **CO₂ Avoided** - Environmental impact
-
-### 3. Multi-Horizon Forecasts
-- **24 hours** - Hourly predictions
-- **7 days** - Daily aggregates
-- **4 weeks** - Weekly trends
-
-### 4. AI Assistant
-- Ask questions about forecasts
-- Get optimization recommendations
-- Understand prediction patterns
-
-### 5. Customizable Settings
-- Choose from 15+ cities worldwide
-- Set your system size (kWp)
-- Configure performance ratio
-- Set electricity tariff
-
 ## 📊 API Endpoints
 
-```bash
-# Forecasting
-POST /forecast/run          # Run complete pipeline
-GET  /forecast/24h          # 24-hour forecast
-GET  /forecast/7d           # 7-day forecast
-GET  /forecast/4w           # 4-week forecast
-
-# Real-Time Data
-GET  /realtime/current      # Current weather + solar
-GET  /realtime/forecast     # Weather forecast
-
-# AI Assistant
-POST /chat                  # Chat with AI
+### Forecasting
+```
+POST /forecast/run              # Run complete forecast pipeline
+GET  /forecast/24h              # 24-hour hourly forecast
+GET  /forecast/7d               # 7-day daily forecast
 ```
 
-## 🎯 Use Cases
+### Real-Time Data
+```
+GET  /realtime/current          # Current weather + solar irradiance
+GET  /realtime/forecast         # Weather forecast
+GET  /realtime/status           # Connection status
+```
 
-1. **Homeowners** - Estimate your solar panel output
-2. **Solar Installers** - Provide accurate forecasts to customers
-3. **Grid Operators** - Predict renewable energy availability
-4. **Energy Traders** - Forecast supply for pricing
-5. **Researchers** - Study solar energy patterns
+### Optimization
+```
+POST /optimize                  # Get smart recommendations
+```
 
-## 🌍 Supported Locations
+### AI Assistant
+```
+POST /chat                      # Chat with AI assistant
+```
 
-**Pre-configured cities:**
-- 🇮🇳 India: Delhi, Mumbai, Bangalore, Chennai
-- 🇺🇸 USA: New York, Los Angeles, Chicago
-- 🇬🇧 Europe: London, Paris, Berlin
-- 🇯🇵 Asia: Tokyo, Singapore, Hong Kong
-- 🇦🇺 Australia: Sydney, Melbourne
+### Utilities
+```
+GET  /locations/presets         # Get preset city locations
+GET  /health                    # Health check
+```
 
-**Custom locations:** Enter any lat/lon coordinates
+---
 
 ## 🔬 Technical Details
 
 ### Solar Irradiance Calculation
-- Physics-based model using solar geometry
-- Accounts for: time, season, latitude, cloud cover
-- Calculates solar elevation angle and air mass
-- Applies atmospheric attenuation
+- Fetches NASA POWER API solar data (monthly average GHI) - **No API key required**
+- Calculates solar elevation angle based on time and location
+- Applies atmospheric attenuation (air mass effect)
+- Adjusts for cloud cover from OpenWeather (0-75% reduction)
+- Accounts for panel orientation (tilt and azimuth angles)
+- Falls back to pure physics-based calculation if NASA POWER unavailable
 
-### LSTM Model
-- **Input features:** Weather data + time features + lag features
-- **Architecture:** LSTM layers with dropout
-- **Training:** 30 days historical data
-- **Validation:** 20% holdout set
-- **Metrics:** MAE, RMSE, Accuracy
+### Energy Forecasting
+- Uses real weather forecast from OpenWeather API (up to 7 days)
+- Physics-based solar irradiance calculations for each hour
+- Temperature effect on panel efficiency (-0.4% per °C above 25°C)
+- System-specific performance ratio
+- Multi-horizon aggregation (hourly → daily)
 
 ### Energy Output Formula
 ```
-Solar Output = Irradiance × Efficiency × System Size
-Wind Output = Wind Speed² × Coefficient
-Total = Solar + Wind
+Solar Output (kWh) = (Irradiance / 1000) × System Size × Performance Ratio × Temperature Factor
+
+Temperature Factor = 1 - 0.004 × (Temperature - 25°C)
+Clamped between 0.7 and 1.0
 ```
 
-## 📈 Model Performance
-
-Typical metrics on validation set:
-- **MAE:** 0.5-1.5 kWh
-- **RMSE:** 0.8-2.0 kWh
-- **Accuracy:** 85-95%
+---
 
 ## 🎨 Tech Stack
 
-**Backend:** FastAPI • LangGraph • TensorFlow • Pandas • Google Gemini  
-**Frontend:** Next.js 14 • TypeScript • TailwindCSS • Recharts  
-**APIs:** OpenWeather • Google Gemini
+### Backend
+- **FastAPI** - REST API framework
+- **TensorFlow/Keras** - LSTM model implementation
+- **LangGraph** - AI agent orchestration
+- **LangChain** - AI framework
+- **Google Gemini** - AI chatbot and insights
+- **Pandas/NumPy** - Data processing
+- **Scikit-learn** - ML utilities
+- **Prophet** - Time series forecasting (optional)
 
-## 📚 Documentation
+### Frontend
+- **Next.js 14** - React framework with App Router
+- **TypeScript** - Type safety
+- **TailwindCSS** - Utility-first styling
+- **Recharts** - Interactive data visualization
+- **Lucide React** - Icon library
+- **Axios** - HTTP client
 
-See `PROJECT_OVERVIEW.md` for detailed architecture and implementation details.
+### APIs
+- **OpenWeather API** - Real-time weather and forecast data (requires API key)
+- **NASA POWER API** - Solar irradiance data (no API key required)
+- **Google Gemini API** - AI chat and insights (optional)
+- **Nominatim API** - Location geocoding (no API key required)
 
-## 🔮 Roadmap
+---
 
-- [ ] Historical data storage (database)
-- [ ] Battery storage optimization
-- [ ] Grid integration planning
-- [ ] PDF report generation
-- [ ] Email alerts
-- [ ] Mobile app
+## 🌍 Supported Locations
+
+**Pre-configured cities (14):**
+- 🇮🇳 India: Delhi, Mumbai, Bangalore, Chennai
+- 🇺🇸 USA: New York, Los Angeles, Chicago
+- 🇬🇧 UK: London
+- 🇫🇷 France: Paris
+- 🇩🇪 Germany: Berlin
+- 🇯🇵 Japan: Tokyo
+- 🇸🇬 Singapore
+- 🇭🇰 Hong Kong
+- 🇦🇺 Australia: Sydney, Melbourne
+
+**Custom locations:** Any latitude/longitude coordinates worldwide
+
+---
+
+## 🎯 Use Cases
+
+1. **Homeowners** - Estimate solar panel output and optimize energy usage
+2. **Solar Installers** - Provide accurate forecasts to customers
+3. **Energy Consultants** - Analyze solar potential for locations
+4. **Researchers** - Study solar energy patterns and predictions
+5. **Students** - Learn about renewable energy forecasting
+
+---
 
 ## 📝 License
 
-MIT License - feel free to use for your projects!
-
-## 🤝 Contributing
-
-Contributions welcome! Please open an issue or submit a PR.
-
-## 📧 Support
-
-For questions or issues, please open a GitHub issue.
+MIT License
 
 ---
 

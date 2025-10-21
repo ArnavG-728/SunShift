@@ -140,7 +140,6 @@ async def run_forecast(request: ForecastRequest = None):
         logger.info(f"Forecast status: {result.get('status')}")
         logger.info(f"Hourly 24h count: {len(result.get('hourly_24h', []))}")
         logger.info(f"Daily 7d count: {len(result.get('daily_7d', []))}")
-        logger.info(f"Weekly 4w count: {len(result.get('weekly_4w', []))}")
         
         # Persist results to CSV files for other endpoints/clients
         try:
@@ -149,8 +148,6 @@ async def run_forecast(request: ForecastRequest = None):
                 pd.DataFrame(result['hourly_24h']).to_csv(config.DATA_DIR / 'predictions_24h.csv', index=False)
             if result.get('daily_7d'):
                 pd.DataFrame(result['daily_7d']).to_csv(config.DATA_DIR / 'predictions_7d.csv', index=False)
-            if result.get('weekly_4w'):
-                pd.DataFrame(result['weekly_4w']).to_csv(config.DATA_DIR / 'predictions_4w.csv', index=False)
         except Exception as save_err:
             logger.warning(f"Unable to persist forecast CSVs: {save_err}")
         
@@ -235,24 +232,6 @@ async def get_7d_forecast():
         
         if not pred_path.exists():
             raise HTTPException(status_code=404, detail="No 7d forecast available")
-        
-        df = pd.read_csv(pred_path)
-        return {"status": "success", "data": df.to_dict(orient="records")}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/forecast/4w")
-async def get_4w_forecast():
-    """Get 4-week weekly forecast"""
-    try:
-        import pandas as pd
-        pred_path = config.DATA_DIR / "predictions_4w.csv"
-        
-        if not pred_path.exists():
-            raise HTTPException(status_code=404, detail="No 4w forecast available")
         
         df = pd.read_csv(pred_path)
         return {"status": "success", "data": df.to_dict(orient="records")}

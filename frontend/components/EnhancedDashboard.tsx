@@ -15,12 +15,11 @@ interface EnhancedDashboardProps {
 export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
   const { config } = useSystemConfig()
   const [loading, setLoading] = useState(false)
-  const [activeHorizon, setActiveHorizon] = useState<'24h' | '7d' | '4w'>('24h')
+  const [activeHorizon, setActiveHorizon] = useState<'24h' | '7d'>('24h')
   
   // Data states
   const [hourly24h, setHourly24h] = useState<any[]>([])
   const [daily7d, setDaily7d] = useState<any[]>([])
-  const [weekly4w, setWeekly4w] = useState<any[]>([])
   
   // Insights
   const [insights, setInsights] = useState<any>(null)
@@ -32,15 +31,13 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
   const fetchLatestData = async () => {
     try {
       // Fetch all horizons
-      const [h24, d7, w4] = await Promise.all([
+      const [h24, d7] = await Promise.all([
         axios.get(`${API_BASE_URL}/forecast/24h`).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE_URL}/forecast/7d`).catch(() => ({ data: { data: [] } })),
-        axios.get(`${API_BASE_URL}/forecast/4w`).catch(() => ({ data: { data: [] } }))
+        axios.get(`${API_BASE_URL}/forecast/7d`).catch(() => ({ data: { data: [] } }))
       ])
       
       if (h24.data.data) setHourly24h(h24.data.data)
       if (d7.data.data) setDaily7d(d7.data.data)
-      if (w4.data.data) setWeekly4w(w4.data.data)
       
       setLastUpdate(new Date())
     } catch (error) {
@@ -72,10 +69,6 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
       if (response.data.daily_7d) {
         console.log('Setting daily data:', response.data.daily_7d.length, 'points')
         setDaily7d(response.data.daily_7d)
-      }
-      if (response.data.weekly_4w) {
-        console.log('Setting weekly data:', response.data.weekly_4w.length, 'points')
-        setWeekly4w(response.data.weekly_4w)
       }
       
       if (response.data.insights) {
@@ -145,8 +138,7 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
   }
 
   const currentData = activeHorizon === '24h' ? formatHourlyData(hourly24h) :
-                      activeHorizon === '7d' ? formatDailyData(daily7d) :
-                      formatWeeklyData(weekly4w)
+                      formatDailyData(daily7d)
 
   return (
     <div className="space-y-6">
@@ -203,25 +195,13 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
             <span className="hidden sm:inline">7 Days</span>
             <span className="sm:hidden">7d</span>
           </button>
-          <button
-            onClick={() => setActiveHorizon('4w')}
-            className={`flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm ${
-              activeHorizon === '4w' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
-            }`}
-          >
-            <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline">4 Weeks</span>
-            <span className="sm:hidden">4w</span>
-          </button>
         </div>
       </div>
 
       {/* Main Chart */}
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold mb-4">
-          {activeHorizon === '24h' ? '24-Hour Hourly Forecast' :
-           activeHorizon === '7d' ? '7-Day Daily Forecast' :
-           '4-Week Weekly Forecast'}
+          {activeHorizon === '24h' ? '24-Hour Hourly Forecast' : '7-Day Daily Forecast'}
         </h3>
         
         {currentData.length > 0 ? (
