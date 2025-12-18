@@ -618,11 +618,12 @@ async def get_unified_usage(
         # Try to get real solar generation from weather data
         solar_gen_kw = 0.0
         try:
+            from agents.realtime_data_agent import RealTimeDataAgent
             realtime_agent = RealTimeDataAgent(latitude=lat, longitude=lon)
             weather_data = realtime_agent.fetch_current_weather(lat, lon)
             if weather_data:
-                clouds = weather_data.get('clouds', {}).get('all', 50)
-                temp = weather_data.get('main', {}).get('temp', 25)
+                clouds = weather_data.get('clouds', 50)
+                temp = weather_data.get('temperature', 25)
                 
                 # Calculate solar using real weather
                 solar_irradiance = realtime_agent.calculate_solar_irradiance(datetime.now(), clouds, lat, lon)
@@ -633,7 +634,7 @@ async def get_unified_usage(
                 
                 # Calculate actual output
                 performance_ratio = 0.78
-                solar_gen_kw = (solar_irradiance.get('irradiance', 0) / 1000) * system_size * performance_ratio * temp_factor
+                solar_gen_kw = (solar_irradiance / 1000) * system_size * performance_ratio * temp_factor
         except Exception as e:
             logger.warning(f"Could not get real solar data: {e}, using estimate")
             # Fallback: estimate based on time of day

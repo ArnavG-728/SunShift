@@ -33,8 +33,9 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
   const [simpleMode, setSimpleMode] = useState(false)
   const [riskData, setRiskData] = useState<any>(null)
   const [currentWeather, setCurrentWeather] = useState<any>(null)
+  const [hasInitialLoad, setHasInitialLoad] = useState(false)
 
-  const fetchLatestData = async () => {
+  const fetchLatestData = async (): Promise<boolean> => {
     try {
       // Fetch all horizons
       const [h24, d7] = await Promise.all([
@@ -42,7 +43,13 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
         axios.get(`${API_BASE_URL}/forecast/7d`).catch(() => ({ data: { data: [] } }))
       ])
 
-      if (h24.data.data) setHourly24h(h24.data.data)
+      const hasData = h24.data.data && h24.data.data.length > 0
+      if (hasData) {
+        setHourly24h(h24.data.data)
+      }
+      if (d7.data.data && d7.data.data.length > 0) {
+        setDaily7d(d7.data.data)
+      }
       setLastUpdate(new Date())
 
       // Fetch Risk Analysis
@@ -57,8 +64,10 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
       }).catch(() => null)
       if (weatherRes?.data?.data) setCurrentWeather(weatherRes.data.data)
 
+      return hasData
     } catch (error) {
       console.error('Error fetching latest data:', error)
+      return false
     }
   }
 
@@ -102,7 +111,10 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
       // Also fetch from endpoints to ensure data is loaded
       await fetchLatestData()
 
-      alert(`✅ Forecast completed successfully for ${config.city}!`)
+      // Only show alert if this was a manual run (not auto-run on first load)
+      if (hasInitialLoad) {
+        alert(`✅ Forecast completed successfully for ${config.city}!`)
+      }
     } catch (error: any) {
       console.error('Error running forecast:', error)
       console.error('Error details:', error.response?.data)
@@ -114,7 +126,16 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
 
   // Load data on mount and when location changes
   useEffect(() => {
-    fetchLatestData()
+    const loadData = async () => {
+      const hasData = await fetchLatestData()
+      // Auto-run forecast if no cached data exists (first time load)
+      if (!hasData && !hasInitialLoad) {
+        console.log('No cached forecast data found, auto-running forecast...')
+        await runForecast()
+      }
+      setHasInitialLoad(true)
+    }
+    loadData()
   }, [config.latitude, config.longitude])
 
 
