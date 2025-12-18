@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Lightbulb, Battery, Zap, TrendingUp, AlertTriangle, Clock, DollarSign, Leaf } from 'lucide-react'
+import { Lightbulb, Battery, Zap, TrendingUp, AlertTriangle, Clock, DollarSign, Leaf, Cpu, Play, Sparkles } from 'lucide-react'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
+import { useCurrency } from '@/lib/useCurrency'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -13,9 +14,10 @@ interface SmartRecommendationsProps {
 
 export default function SmartRecommendations(props: SmartRecommendationsProps = {}) {
   const { config } = useSystemConfig()
+  const { convert, formatCurrency } = useCurrency()
   const [loading, setLoading] = useState(false)
   const [recommendations, setRecommendations] = useState<any>(null)
-  const [activeSection, setActiveSection] = useState<'appliances' | 'battery' | 'grid' | 'savings'>('appliances')
+  const [activeSection, setActiveSection] = useState<'appliances' | 'battery' | 'grid' | 'savings' | 'automation'>('appliances')
 
   const fetchRecommendations = async () => {
     setLoading(true)
@@ -34,9 +36,9 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
         grid_co2_factor: config.gridCO2Factor,
         max_grid_import: config.maxGridImport
       }
-      
+
       console.log('Fetching recommendations with config:', payload)
-      
+
       const response = await axios.post(`${API_BASE_URL}/optimize`, payload)
 
       if (response.data.status === 'success') {
@@ -56,11 +58,11 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
     const interval = setInterval(fetchRecommendations, 300000)
     return () => clearInterval(interval)
   }, [
-    config.latitude, 
-    config.longitude, 
-    config.batteryCapacity, 
-    config.electricityTariff, 
-    config.feedInTariff, 
+    config.latitude,
+    config.longitude,
+    config.batteryCapacity,
+    config.electricityTariff,
+    config.feedInTariff,
     config.systemSize,
     config.panelEfficiency,
     config.panelTilt,
@@ -116,13 +118,11 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
             {recommendations.alerts.map((alert: any, index: number) => (
               <div
                 key={index}
-                className={`flex items-start space-x-3 p-3 rounded-md ${
-                  alert.type === 'warning' ? 'bg-orange-50 border border-orange-200' : 'bg-blue-50 border border-blue-200'
-                }`}
+                className={`flex items-start space-x-3 p-3 rounded-md ${alert.type === 'warning' ? 'bg-orange-50 border border-orange-200' : 'bg-blue-50 border border-blue-200'
+                  }`}
               >
-                <AlertTriangle className={`h-5 w-5 mt-0.5 ${
-                  alert.type === 'warning' ? 'text-orange-600' : 'text-blue-600'
-                }`} />
+                <AlertTriangle className={`h-5 w-5 mt-0.5 ${alert.type === 'warning' ? 'text-orange-600' : 'text-blue-600'
+                  }`} />
                 <div className="flex-1">
                   <p className="font-medium text-sm text-gray-900">{alert.title}</p>
                   <p className="text-sm text-gray-600 mt-1">{alert.message}</p>
@@ -149,16 +149,16 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
           { key: 'appliances', label: 'Appliances', icon: Zap },
           { key: 'battery', label: 'Battery', icon: Battery, show: config.hasBattery && config.batteryCapacity > 0 },
           { key: 'grid', label: 'Grid Strategy', icon: TrendingUp },
+          { key: 'automation', label: 'Automation', icon: Cpu },
           { key: 'savings', label: 'Savings', icon: DollarSign }
         ].filter(tab => tab.show !== false).map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setActiveSection(key as any)}
-            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${
-              activeSection === key
-                ? 'text-green-600 border-b-2 border-green-600 bg-green-50'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-            }`}
+            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${activeSection === key
+              ? 'text-green-600 border-b-2 border-green-600 bg-green-50'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
           >
             <Icon className="h-4 w-4" />
             <span>{label}</span>
@@ -189,7 +189,7 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
                       </div>
                       <div className="text-xs text-gray-600 space-y-1">
                         <p>⏰ Best time: <strong>{item.best_start_time}</strong></p>
-                        <p>💰 Save: <strong>${item.cost_savings.toFixed(2)}</strong></p>
+                        <p>💰 Save: <strong>{formatCurrency(convert(item.cost_savings, 'USD', config.currency), config.currency)}</strong></p>
                         {item.grid_needed > 0 && (
                           <p>⚡ Grid needed: {item.grid_needed.toFixed(2)} kWh</p>
                         )}
@@ -260,13 +260,12 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
                 {recommendations.battery_schedule.schedule?.slice(0, 12).map((item: any, index: number) => (
                   <div
                     key={index}
-                    className={`p-2 rounded-md text-center ${
-                      item.action === 'charge'
-                        ? 'bg-green-100 border border-green-200'
-                        : item.action === 'discharge'
+                    className={`p-2 rounded-md text-center ${item.action === 'charge'
+                      ? 'bg-green-100 border border-green-200'
+                      : item.action === 'discharge'
                         ? 'bg-orange-100 border border-orange-200'
                         : 'bg-gray-100 border border-gray-200'
-                    }`}
+                      }`}
                   >
                     <p className="text-xs font-medium text-gray-900">{item.time}</p>
                     <p className="text-xs text-gray-600 mt-1 capitalize">{item.action}</p>
@@ -281,11 +280,10 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
         {/* Grid Strategy */}
         {activeSection === 'grid' && recommendations.grid_strategy && (
           <div className="space-y-4">
-            <div className={`p-4 rounded-md ${
-              recommendations.grid_strategy.strategy === 'net_exporter'
-                ? 'bg-green-50 border border-green-200'
-                : 'bg-orange-50 border border-orange-200'
-            }`}>
+            <div className={`p-4 rounded-md ${recommendations.grid_strategy.strategy === 'net_exporter'
+              ? 'bg-green-50 border border-green-200'
+              : 'bg-orange-50 border border-orange-200'
+              }`}>
               <p className="text-sm font-medium text-gray-900 mb-2">
                 {recommendations.grid_strategy.strategy === 'net_exporter' ? '📤 Net Exporter' : '📥 Net Importer'}
               </p>
@@ -309,9 +307,8 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
 
             <div className="p-3 bg-blue-50 rounded-md">
               <p className="text-xs text-gray-600">Net Balance</p>
-              <p className={`text-xl font-bold ${
-                recommendations.grid_strategy.net_balance_kwh >= 0 ? 'text-green-600' : 'text-orange-600'
-              }`}>
+              <p className={`text-xl font-bold ${recommendations.grid_strategy.net_balance_kwh >= 0 ? 'text-green-600' : 'text-orange-600'
+                }`}>
                 {recommendations.grid_strategy.net_balance_kwh >= 0 ? '+' : ''}
                 {recommendations.grid_strategy.net_balance_kwh} kWh
               </p>
@@ -333,25 +330,25 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
                   <div className="p-3 bg-green-50 rounded-md">
                     <p className="text-xs text-gray-600">Total Savings</p>
                     <p className="text-2xl font-bold text-green-600">
-                      ${recommendations.savings.total_savings?.toFixed(2)}
+                      {formatCurrency(convert(recommendations.savings.total_savings || 0, 'USD', config.currency), config.currency)}
                     </p>
                   </div>
                   <div className="p-3 bg-blue-50 rounded-md">
                     <p className="text-xs text-gray-600">Monthly Projection</p>
                     <p className="text-2xl font-bold text-blue-600">
-                      ${recommendations.savings.monthly_projection?.toFixed(2)}
+                      {formatCurrency(convert(recommendations.savings.monthly_projection || 0, 'USD', config.currency), config.currency)}
                     </p>
                   </div>
                   <div className="p-3 bg-gray-50 rounded-md">
                     <p className="text-xs text-gray-600">Grid Cost Avoided</p>
                     <p className="text-lg font-semibold text-gray-900">
-                      ${recommendations.savings.grid_cost_avoided?.toFixed(2)}
+                      {formatCurrency(convert(recommendations.savings.grid_cost_avoided || 0, 'USD', config.currency), config.currency)}
                     </p>
                   </div>
                   <div className="p-3 bg-gray-50 rounded-md">
                     <p className="text-xs text-gray-600">Export Revenue</p>
                     <p className="text-lg font-semibold text-gray-900">
-                      ${recommendations.savings.export_revenue?.toFixed(2)}
+                      {formatCurrency(convert(recommendations.savings.export_revenue || 0, 'USD', config.currency), config.currency)}
                     </p>
                   </div>
                 </div>
@@ -385,6 +382,55 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
                     </p>
                   </div>
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Automation Triggers */}
+        {activeSection === 'automation' && (
+          <div className="space-y-4">
+            <div className="p-4 bg-purple-50 rounded-md border border-purple-100">
+              <p className="text-sm font-semibold text-purple-900 mb-1">Prescriptive Intelligence</p>
+              <p className="text-sm text-purple-700">These triggers can be linked to Home Assistant or Google Home to automate your savings.</p>
+            </div>
+
+            {recommendations.automation_triggers && recommendations.automation_triggers.length > 0 ? (
+              <div className="space-y-3">
+                {recommendations.automation_triggers.map((trigger: any, index: number) => (
+                  <div key={index} className="p-4 bg-white border border-gray-200 rounded-xl hover:border-purple-300 transition-colors shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-purple-100 rounded-lg text-purple-600">
+                          <Cpu className="w-4 h-4" />
+                        </div>
+                        <span className="font-bold text-sm text-gray-800">{trigger.action}</span>
+                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${trigger.priority === 1 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                        Priority {trigger.priority}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-gray-600 mb-3">
+                      <b>Condition:</b> {trigger.condition}
+                    </p>
+
+                    <div className="flex items-center justify-between">
+                      <div className="text-[10px] py-1 px-2 bg-gray-50 rounded text-gray-500 font-mono">
+                        Target: {trigger.target}
+                      </div>
+                      <button className="flex items-center gap-1 text-xs font-bold text-purple-600 hover:text-purple-700 bg-purple-50 px-3 py-1.5 rounded-lg transition-all active:scale-95">
+                        <Play className="w-3 h-3" /> Execute Mock
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-10 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <p>No active automation triggers.</p>
+                <p className="text-xs">Conditions for automation (like high solar excess) are not met currently.</p>
               </div>
             )}
           </div>

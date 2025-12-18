@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import axios from 'axios'
-import { Send, Bot, User, Loader2 } from 'lucide-react'
+import { Send, Bot, User, Loader2, Settings, Sparkles, RefreshCw, Zap, Sun, Battery, TrendingUp } from 'lucide-react'
+import { useSystemConfig } from '@/lib/SystemConfigContext'
+import { useCurrency, getCurrencySymbol } from '@/lib/useCurrency'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -13,16 +15,60 @@ interface Message {
 }
 
 export default function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: 'Hello! I\'m SunShift AI, your renewable energy forecasting assistant. I can help you understand energy forecasts, model accuracy, and provide optimization recommendations. What would you like to know?',
-      timestamp: new Date()
-    }
-  ])
+  const { config } = useSystemConfig()
+  const { convert, formatCurrency } = useCurrency()
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [quickStats, setQuickStats] = useState<any>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Fetch quick stats for context
+  const fetchQuickStats = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/realtime/current`, {
+        params: {
+          lat: config.latitude,
+          lon: config.longitude,
+          system_size: config.systemSize,
+          performance_ratio: config.performanceRatio
+        }
+      })
+      if (response.data.status === 'success') {
+        setQuickStats(response.data.data)
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+    }
+  }
+
+  // Initialize with personalized greeting when config loads
+  useEffect(() => {
+    fetchQuickStats()
+
+    const greeting = `Hello! I'm your **SunShift AI Assistant** for **${config.city}**.
+
+**Your System:**
+• ${config.systemSize} kWp solar array
+• Panel tilt: ${config.panelTilt}° at ${config.panelAzimuth === 180 ? 'South' : config.panelAzimuth === 0 ? 'North' : config.panelAzimuth + '°'}
+${config.hasBattery ? `• Battery: ${config.batteryCapacity} kWh` : '• No battery storage'}
+• Electricity rate: ${formatCurrency(convert(config.electricityTariff, 'USD', config.currency), config.currency)}/kWh
+
+I can help you:
+- Understand your solar forecast and production
+- Optimize energy usage patterns
+- Calculate savings and ROI
+- Recommend battery charging strategies
+- Answer questions about your specific setup
+
+**What would you like to know?**`
+
+    setMessages([{
+      role: 'assistant',
+      content: greeting,
+      timestamp: new Date()
+    }])
+  }, [config.city, config.systemSize, config.hasBattery, config.batteryCapacity, config.currency])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -46,8 +92,55 @@ export default function ChatInterface() {
     setLoading(true)
 
     try {
+      // Build comprehensive context for the AI
+      const currentTime = new Date().toLocaleTimeString()
+      const currentDate = new Date().toLocaleDateString()
+
+      let realtimeContext = ''
+      if (quickStats) {
+        realtimeContext = `
+Current Real-Time Data (as of ${currentTime}):
+- Current solar output: ${quickStats.energy_output_kWh?.toFixed(2)} kW
+- Solar irradiance: ${quickStats.solar_irradiance?.toFixed(0)} W/m²
+- Temperature: ${quickStats.temperature?.toFixed(1)}°C
+- Cloud cover: ${quickStats.clouds}%
+- Weather: ${quickStats.weather} - ${quickStats.description}
+- Sunrise: ${quickStats.sunrise || 'N/A'}
+- Sunset: ${quickStats.sunset || 'N/A'}
+- Is daytime: ${quickStats.is_daytime ? 'Yes' : 'No'}
+`
+      }
+
+      const systemContext = `
+You are SunShift AI, an expert solar energy assistant. Be helpful, concise, and specific to this user's system.
+
+User's System Configuration:
+- Location: ${config.city} (Lat: ${config.latitude}, Lon: ${config.longitude})
+- System Size: ${config.systemSize} kWp
+- Panel Efficiency: ${(config.panelEfficiency * 100).toFixed(0)}%
+- Panel Tilt: ${config.panelTilt}° 
+- Panel Azimuth: ${config.panelAzimuth}° (${config.panelAzimuth === 180 ? 'South' : config.panelAzimuth === 0 ? 'North' : config.panelAzimuth === 90 ? 'East' : 'West'})
+- Performance Ratio: ${(config.performanceRatio * 100).toFixed(0)}%
+- Has Battery: ${config.hasBattery ? `Yes, ${config.batteryCapacity} kWh capacity` : 'No'}
+- Electricity Tariff: ${formatCurrency(convert(config.electricityTariff, 'USD', config.currency), config.currency)}/kWh
+- Feed-in Tariff: ${formatCurrency(convert(config.feedInTariff, 'USD', config.currency), config.currency)}/kWh
+- Grid CO2 Factor: ${config.gridCO2Factor} kg/kWh
+
+${realtimeContext}
+
+Current Date/Time: ${currentDate} ${currentTime}
+
+When giving financial advice, always use ${config.currency} (${getCurrencySymbol(config.currency)}) for all monetary values.
+When asked about forecasts, be specific about timeframes.
+If asked about battery, ${config.hasBattery ? 'provide battery-specific advice' : 'suggest they might benefit from battery storage'}.
+
+User's Question: ${input}
+
+Respond concisely and helpfully. Use bullet points for lists. Be specific to their system.
+`.trim()
+
       const response = await axios.post(`${API_BASE_URL}/chat`, {
-        query: input
+        query: systemContext
       })
 
       const assistantMessage: Message = {
@@ -61,7 +154,7 @@ export default function ChatInterface() {
       console.error('Error sending message:', error)
       const errorMessage: Message = {
         role: 'assistant',
-        content: 'Sorry, I encountered an error. Please make sure the backend is running and try again.',
+        content: 'Sorry, I encountered an error connecting to the AI service. Please ensure the backend is running and try again.',
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])
@@ -77,24 +170,55 @@ export default function ChatInterface() {
     }
   }
 
+  // Dynamic suggested questions based on user's system and time
+  const hour = new Date().getHours()
   const suggestedQuestions = [
-    "Why is generation low this week?",
-    "Explain tomorrow's solar energy forecast",
-    "What's the forecast accuracy?",
-    "Compare LSTM vs Prophet models"
+    hour < 12 ? "What's my expected production today?" : "How did my system perform today?",
+    `Why might generation be ${quickStats?.clouds > 50 ? 'low' : 'high'} right now?`,
+    config.hasBattery
+      ? "When should I discharge my battery tonight?"
+      : "Would a battery system make sense for me?",
+    `How can I maximize savings with my ${config.systemSize} kWp system?`
+  ]
+
+  const quickActions = [
+    { icon: Sun, label: 'Today\'s Forecast', query: "Give me today's production forecast hour by hour" },
+    { icon: Zap, label: 'Optimize Usage', query: "What appliances should I run now to maximize solar usage?" },
+    { icon: TrendingUp, label: 'Weekly Summary', query: "Summarize my expected performance for this week" },
+    { icon: Battery, label: config.hasBattery ? 'Battery Strategy' : 'Battery ROI', query: config.hasBattery ? "What's the optimal battery charging strategy for today?" : "Calculate if a battery would be worth it for my system" }
   ]
 
   return (
-    <div className="bg-white rounded-lg shadow-sm h-[calc(100vh-12rem)] flex flex-col">
+    <div className="bg-white rounded-lg shadow-lg h-[calc(100vh-12rem)] flex flex-col">
       {/* Chat Header */}
-      <div className="border-b px-6 py-4">
-        <div className="flex items-center space-x-3">
-          <div className="bg-green-100 p-2 rounded-lg">
-            <Bot className="h-6 w-6 text-green-600" />
+      <div className="border-b px-6 py-4 bg-gradient-to-r from-green-50 to-emerald-50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-2.5 rounded-xl shadow-md">
+              <Bot className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                SunShift AI
+                <Sparkles className="h-4 w-4 text-yellow-500" />
+              </h2>
+              <p className="text-sm text-gray-500">Your personal solar energy expert</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">AI Assistant</h2>
-            <p className="text-sm text-gray-500">Ask me anything about energy forecasts</p>
+          <div className="flex items-center gap-3">
+            {quickStats && (
+              <div className="hidden md:flex items-center gap-2 text-xs bg-white px-3 py-1.5 rounded-full border">
+                <Sun className="w-3 h-3 text-yellow-500" />
+                <span className="text-gray-600">Now: {quickStats.energy_output_kWh?.toFixed(1)} kW</span>
+              </div>
+            )}
+            <button
+              onClick={fetchQuickStats}
+              className="p-2 hover:bg-white rounded-lg transition-colors"
+              title="Refresh stats"
+            >
+              <RefreshCw className="w-4 h-4 text-gray-400" />
+            </button>
           </div>
         </div>
       </div>
@@ -107,7 +231,7 @@ export default function ChatInterface() {
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div className={`flex space-x-3 max-w-3xl ${message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-              <div className={`flex-shrink-0 ${message.role === 'user' ? 'bg-green-600' : 'bg-gray-200'} p-2 rounded-lg h-fit`}>
+              <div className={`flex-shrink-0 ${message.role === 'user' ? 'bg-gradient-to-br from-green-500 to-emerald-600' : 'bg-gray-100'} p-2 rounded-xl h-fit shadow-sm`}>
                 {message.role === 'user' ? (
                   <User className="h-5 w-5 text-white" />
                 ) : (
@@ -116,77 +240,99 @@ export default function ChatInterface() {
               </div>
               <div>
                 <div
-                  className={`rounded-lg px-4 py-3 ${
-                    message.role === 'user'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-gray-900'
-                  }`}
+                  className={`rounded-2xl px-4 py-3 ${message.role === 'user'
+                    ? 'bg-gradient-to-br from-green-500 to-emerald-600 text-white'
+                    : 'bg-gray-100 text-gray-900'
+                    }`}
                 >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
                 </div>
-                <p className="text-xs text-gray-400 mt-1 px-1">
-                  {message.timestamp.toLocaleTimeString()}
+                <p className="text-xs text-gray-400 mt-1 px-2">
+                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
             </div>
           </div>
         ))}
-        
+
         {loading && (
           <div className="flex justify-start">
             <div className="flex space-x-3 max-w-3xl">
-              <div className="bg-gray-200 p-2 rounded-lg h-fit">
+              <div className="bg-gray-100 p-2 rounded-xl h-fit">
                 <Bot className="h-5 w-5 text-gray-600" />
               </div>
-              <div className="bg-gray-100 rounded-lg px-4 py-3">
-                <Loader2 className="h-5 w-5 text-gray-600 animate-spin" />
+              <div className="bg-gray-100 rounded-2xl px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 text-green-600 animate-spin" />
+                  <span className="text-sm text-gray-500">Thinking...</span>
+                </div>
               </div>
             </div>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Suggested Questions */}
-      {messages.length === 1 && (
-        <div className="px-6 pb-4">
-          <p className="text-sm text-gray-500 mb-2">Suggested questions:</p>
-          <div className="grid grid-cols-2 gap-2">
-            {suggestedQuestions.map((question, index) => (
+      {/* Quick Actions */}
+      {messages.length <= 1 && (
+        <div className="px-6 pb-4 space-y-4">
+          {/* Quick Action Buttons */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {quickActions.map((action, index) => (
               <button
                 key={index}
-                onClick={() => setInput(question)}
-                className="text-left text-sm bg-gray-50 hover:bg-gray-100 text-gray-700 px-3 py-2 rounded-lg transition-colors"
+                onClick={() => setInput(action.query)}
+                className="flex items-center gap-2 p-3 text-left text-sm bg-white border border-gray-200 hover:border-green-300 hover:bg-green-50 rounded-xl transition-all group"
               >
-                {question}
+                <action.icon className="w-4 h-4 text-gray-400 group-hover:text-green-600" />
+                <span className="text-gray-700 group-hover:text-green-700 text-xs font-medium">{action.label}</span>
               </button>
             ))}
+          </div>
+
+          {/* Suggested Questions */}
+          <div>
+            <p className="text-xs text-gray-400 mb-2">Suggested questions:</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {suggestedQuestions.map((question, index) => (
+                <button
+                  key={index}
+                  onClick={() => setInput(question)}
+                  className="text-left text-sm bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 text-gray-700 px-3 py-2 rounded-lg transition-colors border border-green-100"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
 
       {/* Input */}
-      <div className="border-t px-6 py-4">
+      <div className="border-t px-6 py-4 bg-gray-50">
         <div className="flex space-x-3">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Ask about forecasts, accuracy, or recommendations..."
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            placeholder={`Ask about your ${config.systemSize} kWp system in ${config.city}...`}
+            className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white"
             disabled={loading}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || loading}
-            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+            className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-xl hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center space-x-2 shadow-md hover:shadow-lg"
           >
             <Send className="h-5 w-5" />
-            <span>Send</span>
+            <span className="hidden sm:inline">Send</span>
           </button>
         </div>
+        <p className="text-xs text-gray-400 mt-2 text-center">
+          Powered by AI • Using real-time data from {config.city}
+        </p>
       </div>
     </div>
   )

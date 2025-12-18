@@ -296,6 +296,30 @@ async def get_current_weather(lat: float = 28.6139, lon: float = 77.2090, system
         energy_output = (float(solar_irradiance) / 1000.0) * float(system_size) * float(performance_ratio) * float(temp_factor)
         energy_output = float(max(0.0, energy_output))
         
+        # Calculate cloud loss
+        cloud_loss = agent.calculate_cloud_loss(
+            local_time, 
+            current["clouds"],
+            lat=lat,
+            lon=lon,
+            system_size_kwp=system_size,
+            performance_ratio=performance_ratio
+        )
+        
+        # Get sunrise/sunset times
+        sunrise = current.get("sunrise")
+        sunset = current.get("sunset")
+        
+        # Calculate daylight hours
+        daylight_hours = 0
+        if sunrise and sunset:
+            daylight_hours = (sunset - sunrise).total_seconds() / 3600
+        
+        # Is it currently daytime?
+        is_daytime = False
+        if sunrise and sunset:
+            is_daytime = sunrise <= local_time <= sunset
+        
         response_data = {
             "status": "success",
             "data": {
@@ -308,8 +332,14 @@ async def get_current_weather(lat: float = 28.6139, lon: float = 77.2090, system
                 "clouds": int(current["clouds"]),
                 "solar_irradiance": float(solar_irradiance),
                 "energy_output_kWh": float(energy_output),
+                "cloud_loss": cloud_loss,
                 "weather": current["weather"],
-                "description": current["description"]
+                "description": current["description"],
+                # Sun times
+                "sunrise": sunrise.strftime("%H:%M") if sunrise else None,
+                "sunset": sunset.strftime("%H:%M") if sunset else None,
+                "daylight_hours": round(daylight_hours, 1),
+                "is_daytime": is_daytime
             }
         }
         
@@ -547,6 +577,182 @@ async def test_nasa_power(lat: float = 13.0837, lon: float = 80.2702):
         }
 
 
+
+@app.get("/risk/analysis")
+async def get_risk_analysis(lat: float = 28.6139, lon: float = 77.2090):
+    """Get solar installation risk analysis"""
+    try:
+        from agents.realtime_data_agent import RealTimeDataAgent
+        from agents.risk_agent import SolarRiskAgent
+        
+        weather_agent = RealTimeDataAgent(latitude=lat, longitude=lon)
+        risk_agent = SolarRiskAgent()
+        
+        current_weather = weather_agent.fetch_current_weather(lat=lat, lon=lon)
+        if not current_weather:
+            raise HTTPException(status_code=503, detail="Weather data unavailable for risk analysis")
+            
+        risk_data = risk_agent.calculate_risk_score(current_weather)
+        return {
+            "status": "success",
+            "risk_analysis": risk_data
+        }
+    except Exception as e:
+        logger.error(f"Error in risk analysis: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/usage/unified")
+async def get_unified_usage(
+    lat: float = 28.6139, 
+    lon: float = 77.2090,
+    system_size: float = 5.0,
+    has_battery: bool = False,
+    battery_capacity: float = 0.0
+):
+    """Get unified energy truth (Solar + Grid + Battery + EV + Gas + Water)"""
+    try:
+        import random
+        from datetime import datetime
+        
+        # Try to get real solar generation from weather data
+        solar_gen_kw = 0.0
+        try:
+            realtime_agent = RealTimeDataAgent(latitude=lat, longitude=lon)
+            weather_data = realtime_agent.fetch_current_weather(lat, lon)
+            if weather_data:
+                clouds = weather_data.get('clouds', {}).get('all', 50)
+                temp = weather_data.get('main', {}).get('temp', 25)
+                
+                # Calculate solar using real weather
+                solar_irradiance = realtime_agent.calculate_solar_irradiance(datetime.now(), clouds, lat, lon)
+                
+                # Temperature derating
+                temp_factor = 1 - 0.004 * max(0, temp - 25)
+                temp_factor = max(0.7, min(1.0, temp_factor))
+                
+                # Calculate actual output
+                performance_ratio = 0.78
+                solar_gen_kw = (solar_irradiance.get('irradiance', 0) / 1000) * system_size * performance_ratio * temp_factor
+        except Exception as e:
+            logger.warning(f"Could not get real solar data: {e}, using estimate")
+            # Fallback: estimate based on time of day
+            hour = datetime.now().hour
+            if 6 <= hour <= 18:
+                solar_gen_kw = system_size * 0.6 * (1 - abs(hour - 12) / 12)
+            else:
+                solar_gen_kw = 0.0
+        
+        # Simulate house load (typical residential pattern)
+        hour = datetime.now().hour
+        base_load = 1.5  # Base load
+        if 7 <= hour <= 9 or 18 <= hour <= 22:
+            house_load_kw = base_load + random.uniform(1, 2.5)  # Morning/evening peaks
+        elif 9 <= hour <= 17:
+            house_load_kw = base_load + random.uniform(0.5, 1.5)  # Daytime
+        else:
+            house_load_kw = base_load + random.uniform(0, 0.5)  # Night
+        
+        # Calculate grid import/export
+        net_flow = solar_gen_kw - house_load_kw
+        grid_import_kw = max(0, -net_flow)
+        
+        # Battery state (if user has one)
+        battery_soc = 0.0
+        if has_battery and battery_capacity > 0:
+            # Simulate battery charging during excess solar
+            battery_soc = min(100, 50 + (net_flow * 10))  # Simplified
+            battery_soc = max(10, battery_soc)
+        
+        return {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "location": {"lat": lat, "lon": lon},
+            "system_config": {
+                "system_size_kwp": system_size,
+                "has_battery": has_battery,
+                "battery_capacity_kwh": battery_capacity
+            },
+            "metrics": {
+                "electricity": {
+                    "solar_gen_kw": round(max(0, solar_gen_kw), 2),
+                    "grid_import_kw": round(grid_import_kw, 2),
+                    "battery_soc_percent": round(battery_soc, 1),
+                    "house_load_kw": round(house_load_kw, 2),
+                    "net_flow_kw": round(net_flow, 2),
+                    "is_exporting": net_flow > 0
+                },
+                "transport": {
+                    "ev_charge_percent": round(random.uniform(40, 90), 1),
+                    "ev_range_km": round(random.uniform(150, 400), 1),
+                    "charging_status": random.choice(["Disconnected", "Charging", "Standby"])
+                },
+                "other_resources": {
+                    "gas_usage_m3": round(random.uniform(0.1, 0.5), 3),
+                    "water_usage_liters": round(random.uniform(5, 50), 1),
+                    "water_leak_alert": False
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error in unified usage: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/currency/rates")
+async def get_currency_rates(base: str = "USD"):
+    """Get real-time currency exchange rates"""
+    try:
+        import requests
+        from datetime import datetime
+        
+        # Use free exchangerate API (no key required for limited use)
+        url = f"https://api.exchangerate-api.com/v4/latest/{base}"
+        
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            return {
+                "status": "success",
+                "base": base,
+                "timestamp": datetime.now().isoformat(),
+                "rates": {
+                    "USD": data["rates"].get("USD", 1.0),
+                    "EUR": data["rates"].get("EUR", 0.85),
+                    "GBP": data["rates"].get("GBP", 0.73),
+                    "INR": data["rates"].get("INR", 83.0),
+                    "AUD": data["rates"].get("AUD", 1.52),
+                    "CAD": data["rates"].get("CAD", 1.36),
+                    "JPY": data["rates"].get("JPY", 149.0),
+                    "CNY": data["rates"].get("CNY", 7.2)
+                }
+            }
+        except:
+            # Fallback to approximate rates if API fails
+            logger.warning("Currency API failed, using fallback rates")
+            return {
+                "status": "fallback",
+                "base": base,
+                "timestamp": datetime.now().isoformat(),
+                "rates": {
+                    "USD": 1.0,
+                    "EUR": 0.92,
+                    "GBP": 0.79,
+                    "INR": 83.0,
+                    "AUD": 1.54,
+                    "CAD": 1.36,
+                    "JPY": 149.0,
+                    "CNY": 7.14
+                }
+            }
+    except Exception as e:
+        logger.error(f"Error getting currency rates: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+

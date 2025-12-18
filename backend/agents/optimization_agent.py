@@ -89,6 +89,9 @@ class OptimizationAgent:
         # Energy alerts
         alerts = self._generate_alerts(df, energy_col)
         
+        # Automation triggers
+        automation_triggers = self._generate_automation_triggers(df, energy_col)
+        
         return {
             'status': 'success',
             'peak_hours': peak_hours,
@@ -99,6 +102,7 @@ class OptimizationAgent:
             'savings': savings,
             'carbon_impact': carbon_impact,
             'alerts': alerts,
+            'automation_triggers': automation_triggers,
             'summary': self._generate_summary(df, energy_col, peak_hours, savings)
         }
     
@@ -428,6 +432,51 @@ class OptimizationAgent:
         """.strip()
         
         return summary
+    
+    def _generate_automation_triggers(self, df: pd.DataFrame, energy_col: str) -> List[Dict]:
+        """Generate structured JSON triggers for smart home automation"""
+        triggers = []
+        if len(df) == 0:
+            return triggers
+            
+        # 1. Excess Solar Trigger
+        current_energy = df.iloc[0][energy_col]
+        if current_energy > 3.0:
+            triggers.append({
+                "id": "solar_excess_high",
+                "action": "START_LOAD",
+                "target": "EV_CHARGER",
+                "condition": f"Production ({current_energy:.1f}kW) > 3.0kW",
+                "priority": 1,
+                "payload": {"current_limit_amps": 16}
+            })
+            
+        # 2. Battery Low + Low Forecast Trigger
+        tomorrow_total = df.iloc[:24][energy_col].sum() if len(df) >= 24 else 0
+        if tomorrow_total < 5.0 and tomorrow_total > 0:
+            triggers.append({
+                "id": "grid_charge_reserve",
+                "action": "CHARGE_FROM_GRID",
+                "target": "STORAGE_BATTERY",
+                "condition": f"Tomorrow forecast ({tomorrow_total:.1f}kWh) is low",
+                "priority": 2,
+                "payload": {"target_soc": 80, "max_rate_kw": 3.0}
+            })
+            
+        # 3. Peak Export Opportunity
+        max_idx = df[energy_col].idxmax()
+        max_hour = df.loc[max_idx]
+        if max_hour[energy_col] > 4.0:
+            triggers.append({
+                "id": "peak_export_optimize",
+                "action": "MAXIMIZE_EXPORT",
+                "target": "INVERTER",
+                "condition": f"Peak production at {pd.to_datetime(max_hour['timestamp']).strftime('%H:%M')}",
+                "priority": 3,
+                "payload": {"export_limit_kw": 10.0}
+            })
+            
+        return triggers
     
     def _empty_recommendations(self) -> Dict:
         """Return empty recommendations structure"""

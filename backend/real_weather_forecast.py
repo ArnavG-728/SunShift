@@ -154,48 +154,169 @@ class RealWeatherSolarForecaster:
         return df_merged
     
     def _generate_synthetic_weather(self, hours: int, lat: float, lon: float) -> pd.DataFrame:
-        """Fallback: Generate synthetic weather if API fails"""
+        """
+        Generate location-aware synthetic weather when API fails or for extension.
+        Uses latitude-based climatology for realistic patterns.
+        """
         current_time = datetime.now()
         forecast_data = []
+        
+        # Determine climate zone from latitude (affects base temperature and seasonal swing)
+        abs_lat = abs(lat)
+        if abs_lat < 15:
+            # Tropical: Hot, less seasonal variation
+            base_temp = 28
+            seasonal_swing = 4
+            base_humidity = 75
+            base_clouds = 40
+        elif abs_lat < 35:
+            # Subtropical: Warm, moderate seasonal variation
+            base_temp = 22
+            seasonal_swing = 8
+            base_humidity = 60
+            base_clouds = 35
+        elif abs_lat < 55:
+            # Temperate: Moderate, strong seasonal variation
+            base_temp = 15
+            seasonal_swing = 12
+            base_humidity = 65
+            base_clouds = 50
+        else:
+            # Cold/Polar: Cold, extreme seasonal variation
+            base_temp = 5
+            seasonal_swing = 15
+            base_humidity = 70
+            base_clouds = 60
+        
+        # Hemisphere adjustment (southern hemisphere has opposite seasons)
+        hemisphere_factor = 1 if lat >= 0 else -1
         
         for h in range(hours):
             future_time = current_time + timedelta(hours=h)
             hour = future_time.hour
             day_of_year = future_time.timetuple().tm_yday
             
-            # Temperature with daily and seasonal cycles
-            base_temp = 15 + 10 * np.sin(2 * np.pi * day_of_year / 365)
+            # Seasonal temperature variation (peaks in summer)
+            seasonal_offset = seasonal_swing * np.sin(2 * np.pi * (day_of_year - 172) / 365 * hemisphere_factor)
+            
+            # Daily temperature variation (peaks at 2-3 PM)
             daily_variation = 5 * np.sin(2 * np.pi * (hour - 6) / 24)
-            temperature = base_temp + daily_variation + np.random.normal(0, 1)
             
-            # Humidity (inverse of temperature)
-            humidity = 70 - (temperature - 15) * 1.5 + np.random.normal(0, 5)
-            humidity = np.clip(humidity, 30, 95)
+            temperature = base_temp + seasonal_offset + daily_variation + np.random.normal(0, 1)
             
-            # Wind
-            wind_speed = np.random.normal(5, 2)
-            wind_speed = np.clip(wind_speed, 0, 15)
+            # Humidity (inverse of temperature, with some persistence)
+            humidity = base_humidity - (temperature - base_temp) * 1.2 + np.random.normal(0, 3)
+            humidity = np.clip(humidity, 25, 98)
             
-            # Clouds (random walk)
+            # Wind speed (with persistence for realism)
             if h == 0:
-                clouds = np.random.uniform(0, 100)
+                wind_speed = np.random.normal(4, 1.5)
             else:
-                clouds = forecast_data[-1]['clouds'] + np.random.normal(0, 15)
+                prev_wind = forecast_data[-1]['wind_speed']
+                wind_speed = prev_wind * 0.7 + np.random.normal(4, 1.5) * 0.3
+            wind_speed = np.clip(wind_speed, 0.5, 15)
+            
+            # Cloud cover (multi-day weather patterns with persistence)
+            if h == 0:
+                clouds = base_clouds + np.random.normal(0, 15)
+            else:
+                # Slow random walk for realistic multi-day patterns
+                prev_clouds = forecast_data[-1]['clouds']
+                clouds = prev_clouds * 0.95 + np.random.normal(base_clouds, 10) * 0.05
             clouds = np.clip(clouds, 0, 100)
             
             forecast_data.append({
                 'timestamp': future_time,
-                'temperature': temperature,
-                'humidity': humidity,
-                'wind_speed': wind_speed,
-                'clouds': clouds,
+                'temperature': round(temperature, 1),
+                'humidity': round(humidity, 1),
+                'wind_speed': round(wind_speed, 1),
+                'clouds': round(clouds, 1),
                 'pressure': 1013,
-                'weather': 'Clear' if clouds < 30 else 'Clouds'
+                'weather': 'Clear' if clouds < 30 else ('Clouds' if clouds < 70 else 'Overcast')
             })
         
+        logger.info(f"Generated {hours}h synthetic weather for ({lat}, {lon}): {base_temp}°C base, {seasonal_swing}° seasonal")
         return pd.DataFrame(forecast_data)
+
+    def _extend_weather_forecast(self, real_df: pd.DataFrame, hours_needed: int, 
+                                  lat: float, lon: float) -> pd.DataFrame:
+        """
+        Extend real weather data with climatology-based synthetic data.
+        Uses the last real data point to seed the extension for smooth transition.
+        """
+        if len(real_df) >= hours_needed:
+            return real_df.head(hours_needed)
+        
+        hours_missing = hours_needed - len(real_df)
+        logger.info(f"Extending {len(real_df)}h real data with {hours_missing}h climatology-based forecast")
+        
+        # Get last real data point to seed extension
+        last_real = real_df.iloc[-1]
+        last_timestamp = pd.to_datetime(last_real['timestamp'])
+        
+        # Generate extension starting from next hour
+        extension_data = []
+        
+        # Climate zone parameters (same as synthetic)
+        abs_lat = abs(lat)
+        if abs_lat < 15:
+            base_temp, seasonal_swing, base_humidity, base_clouds = 28, 4, 75, 40
+        elif abs_lat < 35:
+            base_temp, seasonal_swing, base_humidity, base_clouds = 22, 8, 60, 35
+        elif abs_lat < 55:
+            base_temp, seasonal_swing, base_humidity, base_clouds = 15, 12, 65, 50
+        else:
+            base_temp, seasonal_swing, base_humidity, base_clouds = 5, 15, 70, 60
+        
+        hemisphere_factor = 1 if lat >= 0 else -1
+        
+        # Initialize with last real values
+        prev_wind = last_real.get('wind_speed', 4)
+        prev_clouds = last_real.get('clouds', base_clouds)
+        
+        for h in range(1, hours_missing + 1):
+            future_time = last_timestamp + timedelta(hours=h)
+            hour = future_time.hour
+            day_of_year = future_time.timetuple().tm_yday
+            
+            # Temperature
+            seasonal_offset = seasonal_swing * np.sin(2 * np.pi * (day_of_year - 172) / 365 * hemisphere_factor)
+            daily_variation = 5 * np.sin(2 * np.pi * (hour - 6) / 24)
+            temperature = base_temp + seasonal_offset + daily_variation + np.random.normal(0, 1)
+            
+            # Humidity
+            humidity = base_humidity - (temperature - base_temp) * 1.2 + np.random.normal(0, 3)
+            humidity = np.clip(humidity, 25, 98)
+            
+            # Wind (persistence from previous)
+            wind_speed = prev_wind * 0.7 + np.random.normal(4, 1.5) * 0.3
+            wind_speed = np.clip(wind_speed, 0.5, 15)
+            prev_wind = wind_speed
+            
+            # Clouds (persistence from previous)
+            clouds = prev_clouds * 0.95 + np.random.normal(base_clouds, 10) * 0.05
+            clouds = np.clip(clouds, 0, 100)
+            prev_clouds = clouds
+            
+            extension_data.append({
+                'timestamp': future_time,
+                'temperature': round(temperature, 1),
+                'humidity': round(humidity, 1),
+                'wind_speed': round(wind_speed, 1),
+                'clouds': round(clouds, 1),
+                'pressure': 1013,
+                'weather': 'Clear' if clouds < 30 else ('Clouds' if clouds < 70 else 'Overcast')
+            })
+        
+        extension_df = pd.DataFrame(extension_data)
+        combined_df = pd.concat([real_df, extension_df], ignore_index=True)
+        
+        logger.info(f"✓ Extended forecast to {len(combined_df)} hours total")
+        return combined_df
+
     
     def calculate_solar_position(self, timestamp: datetime, lat: float, lon: float) -> Dict:
+
         """Calculate sun's position in the sky"""
         hour = timestamp.hour + timestamp.minute / 60
         day_of_year = timestamp.timetuple().tm_yday
@@ -448,8 +569,9 @@ class RealWeatherSolarForecaster:
         # Fetch real weather forecast
         weather_df = self.fetch_weather_forecast(lat, lon)
         
-        # Limit to requested hours
-        weather_df = weather_df.head(hours)
+        # Extend to requested hours if needed (OpenWeather only gives ~5 days)
+        weather_df = self._extend_weather_forecast(weather_df, hours, lat, lon)
+
         
         # Calculate solar irradiance and energy for each hour
         predictions = []

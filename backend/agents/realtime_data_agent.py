@@ -323,31 +323,53 @@ class RealTimeDataAgent:
             irradiance = 0  # Night time
         
         return max(0, irradiance)
-    
+
+    def calculate_cloud_loss(self, timestamp: datetime, clouds: float, 
+                             lat: float = None, lon: float = None, 
+                             system_size_kwp: float = 5.0, 
+                             performance_ratio: float = 0.85) -> Dict:
+        """
+        Calculate energy lost due to cloud cover
+        """
+        use_lat = lat if lat is not None else self.default_lat
+        use_lon = lon if lon is not None else self.default_lon
+        
+        # 1. Clear Sky Potential (Clouds = 0)
+        hour = timestamp.hour + timestamp.minute / 60
+        solar_elevation = max(0, np.sin((hour - 6) * np.pi / 12) * 90)
+        
+        if solar_elevation <= 0:
+            return {"potential_kwh": 0, "actual_kwh": 0, "loss_kwh": 0, "loss_percent": 0}
+            
+        air_mass = 1 / (np.sin(np.radians(solar_elevation)) + 0.0001)
+        clear_sky_irradiance = 1367 * (0.7 ** (air_mass ** 0.678))
+        
+        # 2. Actual Irradiance
+        actual_irradiance = self.calculate_solar_irradiance(timestamp, clouds, use_lat, use_lon)
+        
+        # 3. Convert to energy
+        potential_kwh = (clear_sky_irradiance / 1000.0) * system_size_kwp * performance_ratio
+        actual_kwh = (actual_irradiance / 1000.0) * system_size_kwp * performance_ratio
+        
+        loss_kwh = max(0, potential_kwh - actual_kwh)
+        loss_percent = (loss_kwh / potential_kwh * 100) if potential_kwh > 0 else 0
+        
+        return {
+            "potential_kwh": float(potential_kwh),
+            "actual_kwh": float(actual_kwh),
+            "loss_kwh": float(loss_kwh),
+            "loss_percent": float(loss_percent)
+        }
+
     def estimate_energy_output(self, weather_data: Dict, system_size_kwp: float = 5.0, performance_ratio: float = 0.85) -> float:
         """
         Estimate energy output from weather conditions
-        THIS IS THE MAIN PREDICTION FUNCTION!
-        
-        Calculation:
-        - PV output only (no wind):
-          energy_kWh = (irradiance_Wm2 / 1000) * system_size_kWp * PR * temp_factor
-        
-        Args:
-            weather_data: Weather data point with timestamp, clouds, wind_speed
-            system_size_kwp: PV system size (kWp), default 5.0
-            performance_ratio: Other system losses (wiring, inverter, soiling), default 0.85
-            
-        Returns:
-            Estimated energy output in kWh
         """
-        # Calculate solar irradiance
         irradiance = self.calculate_solar_irradiance(
             weather_data["timestamp"],
             weather_data["clouds"]
         )
         
-        # Temperature derating relative to 25°C
         temperature = weather_data.get("temperature")
         if temperature is None or pd.isna(temperature):
             temp_factor = 1.0
@@ -355,9 +377,7 @@ class RealTimeDataAgent:
             temp_factor = 1 - 0.004 * (float(temperature) - 25.0)
             temp_factor = max(0.7, min(1.0, temp_factor))
 
-        # PV-only energy output for 1 hour
         energy_kwh = (float(irradiance) / 1000.0) * float(system_size_kwp) * float(performance_ratio) * float(temp_factor)
-        
         return float(max(0.0, energy_kwh))
     
     def fetch_historical_data(self, days: int = 30) -> pd.DataFrame:
