@@ -1,0 +1,89 @@
+{
+  "status": "success",
+  "location": {
+    "lat": 28.6139,
+    "lon": 77.209
+  },
+  "started_at": "2026-01-09T16:27:47.099823",
+  "data_collection": {
+    "samples": 8784,
+    "date_range": {
+      "start": "2025-01-07 00:00:00",
+      "end": "2026-01-07 23:00:00"
+    },
+    "features": 37,
+    "target_stats": {
+      "mean": 0.730728269976806,
+      "std": 0.9993461315369812,
+      "min": 0.0,
+      "max": 3.692025404965497
+    }
+  },
+  "training": {
+    "epochs_completed": 42,
+    "final_loss": 0.001275602146051824,
+    "final_val_loss": 0.0015328606823459268,
+    "mae": 0.07523525837982194,
+    "rmse": 0.1357456624803994,
+    "mape": 6015887084.255095,
+    "bias_correction": 0.011079205363448082
+  },
+  "evaluation": {
+    "overall_mae": 0.07523525837982194,
+    "daytime_mae": 0.07823084347835416,
+    "nighttime_mae": 0.07171723121266241,
+    "prediction_range": {
+      "min": 0.011079205363448082,
+      "max": 2.6478763950759725,
+      "mean": 0.5530148453782635
+    }
+  },
+  "model": {
+    "name": "solar_forecaster",
+    "path": "C:\\Data\\prog_projects\\Energy_ReGen_v2\\backend\\models\\ml_saved\\solar_forecaster.keras",
+    "info": {
+      "is_trained": true,
+      "sequence_length": 24,
+      "n_features": 26,
+      "feature_cols": [
+        "temperature",
+        "humidity",
+        "clouds",
+        "wind_speed",
+        "pressure",
+        "hour_sin",
+        "hour_cos",
+        "day_sin",
+        "day_cos",
+        "month_sin",
+        "month_cos",
+        "is_daytime",
+        "solar_declination",
+        "clearsky_ratio",
+        "temp_humidity",
+        "cloud_wind",
+        "solar_lag_1h",
+        "solar_lag_24h",
+        "temp_lag_1h",
+        "clouds_lag_1h",
+        "solar_rolling_3h",
+        "solar_rolling_24h",
+        "temp_rolling_24h",
+        "clouds_rolling_6h",
+        "solar_irradiance_wm2",
+        "clearsky_irradiance_wm2"
+      ],
+      "bias_correction": 0.011079205363448082,
+      "trained_at": "2026-01-09T16:41:11.019110",
+      "training_samples": 7027,
+      "val_mae": 0.07523525837982194,
+      "val_rmse": 0.1357456624803994,
+      "val_mape": 6015887084.255095,
+      "location": {
+        "lat": 28.6139,
+        "lon": 77.209
+      }
+    }
+  },
+  "completed_at": "2026-01-09T16:41:12.195283"
+}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import axios from 'axios'
-import { Lightbulb, Battery, Zap, TrendingUp, AlertTriangle, Clock, DollarSign, Leaf, Cpu, Play, Sparkles } from 'lucide-react'
+import { Lightbulb, Battery, Zap, TrendingUp, AlertTriangle, Clock, DollarSign, Leaf, Cpu, Play, Sparkles, Cross, CrossIcon, Minus, MinusCircleIcon, SidebarClose, PanelTopClose, ShieldClose, X } from 'lucide-react'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
 import { useCurrency } from '@/lib/useCurrency'
 
@@ -18,6 +18,60 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
   const [loading, setLoading] = useState(false)
   const [recommendations, setRecommendations] = useState<any>(null)
   const [activeSection, setActiveSection] = useState<'appliances' | 'battery' | 'grid' | 'savings' | 'automation'>('appliances')
+
+  // Appliance management state
+  const [showApplianceEditor, setShowApplianceEditor] = useState(false)
+  const [applianceConfig, setApplianceConfig] = useState<any[]>([])
+  const [isSaving, setIsSaving] = useState(false)
+
+  const fetchAppliances = async () => {
+    try {
+      const resp = await axios.get(`${API_BASE_URL}/appliances`)
+      setApplianceConfig(Array.isArray(resp.data) ? resp.data : [])
+    } catch (err) {
+      console.error('Error fetching appliances:', err)
+    }
+  }
+
+  const saveAppliances = async () => {
+    setIsSaving(true)
+    try {
+      await axios.post(`${API_BASE_URL}/appliances`, applianceConfig)
+      setShowApplianceEditor(false)
+      fetchRecommendations() // Refresh with new config
+    } catch (err) {
+      console.error('Error saving appliances:', err)
+      alert('Failed to save appliance configuration')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const updateAppliance = (index: number, field: string, value: any) => {
+    const newConfig = [...applianceConfig]
+    newConfig[index][field] = value
+    setApplianceConfig(newConfig)
+  }
+
+  const addAppliance = () => {
+    setApplianceConfig([...applianceConfig, { name: 'New Device', consumption_kwh: 1.0, duration_hours: 1 }])
+  }
+
+  const removeAppliance = (index: number) => {
+    const newConfig = [...applianceConfig]
+    newConfig.splice(index, 1)
+    setApplianceConfig(newConfig)
+  }
+
+  const getCategory = (consumption: number) => {
+    if (consumption > 2.5) return { label: 'High', color: 'bg-red-400', text: 'text-red-600' }
+    if (consumption >= 1.0) return { label: 'Medium', color: 'bg-orange-400', text: 'text-orange-600' }
+    return { label: 'Flexible', color: 'bg-blue-400', text: 'text-blue-600' }
+  }
+
+  useEffect(() => {
+    fetchAppliances()
+  }, [])
 
   const fetchRecommendations = async () => {
     setLoading(true)
@@ -102,14 +156,137 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
             <Lightbulb className="h-5 w-5 text-yellow-500" />
             <h3 className="text-lg font-semibold text-gray-900">Smart Energy Recommendations</h3>
           </div>
-          <button
-            onClick={fetchRecommendations}
-            className="text-sm text-green-600 hover:text-green-700"
-          >
-            Refresh
-          </button>
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowApplianceEditor(true)}
+              className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              Manage Appliances
+            </button>
+            <button
+              onClick={fetchRecommendations}
+              className="text-sm text-green-600 hover:text-green-700 font-medium"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Appliance Editor Modal */}
+      {showApplianceEditor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b flex items-center justify-between bg-gradient-to-r from-green-50 to-blue-50">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Configure Appliances</h3>
+                <p className="text-sm text-gray-500">Add or edit appliances to personalize your energy optimization</p>
+              </div>
+              <button
+                onClick={() => setShowApplianceEditor(false)}
+                className="p-2 hover:bg-white/50 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400 rotate-180" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                    <Cpu className="w-4 h-4" />
+                    Appliance Inventory
+                  </h4>
+                  <p className="text-[10px] text-gray-400 font-medium">Automatic classification based on kWh</p>
+                </div>
+
+                <div className="grid gap-3">
+                  {applianceConfig?.map((app: any, idx: number) => {
+                    const cat = getCategory(app.consumption_kwh);
+                    return (
+                      <div key={idx} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100 group transition-all hover:bg-white hover:shadow-sm">
+                        <div className="flex-1 grid grid-cols-12 gap-3 items-center">
+                          <div className="col-span-5">
+                            <input
+                              className="w-full bg-transparent font-bold text-sm focus:ring-0 border-none p-0 text-gray-800 placeholder:text-gray-300"
+                              value={app.name}
+                              placeholder="Appliance Name"
+                              onChange={(e) => updateAppliance(idx, 'name', e.target.value)}
+                            />
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${cat.color}`} />
+                              <span className={`text-[10px] font-bold uppercase tracking-tight ${cat.text}`}>{cat.label} Load</span>
+                            </div>
+                          </div>
+
+                          <div className="col-span-3 flex items-center gap-2 bg-white/50 px-2 py-1 rounded-lg border border-gray-100">
+                            <Zap className="w-3.5 h-3.5 text-yellow-500" />
+                            <input
+                              type="number"
+                              step="0.1"
+                              className="w-full bg-transparent text-sm font-medium focus:ring-0 border-none p-0"
+                              value={app.consumption_kwh}
+                              onChange={(e) => updateAppliance(idx, 'consumption_kwh', parseFloat(e.target.value))}
+                            />
+                            <span className="text-[10px] text-gray-400 font-bold uppercase">kWh</span>
+                          </div>
+
+                          <div className="col-span-3 flex items-center gap-2 bg-white/50 px-2 py-1 rounded-lg border border-gray-100">
+                            <Clock className="w-3.5 h-3.5 text-blue-500" />
+                            <input
+                              type="number"
+                              className="w-full bg-transparent text-sm font-medium focus:ring-0 border-none p-0"
+                              value={app.duration_hours}
+                              onChange={(e) => updateAppliance(idx, 'duration_hours', parseInt(e.target.value))}
+                            />
+                            <span className="text-[10px] text-gray-400 font-bold uppercase">hrs</span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => removeAppliance(idx)}
+                          className="p-2 hover:bg-red-50 text-red-300 hover:text-red-500 rounded-lg transition-all"
+                          title="Remove appliance"
+                        >
+                          <Minus className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  <button
+                    onClick={addAppliance}
+                    className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-gray-100 rounded-xl text-sm font-bold text-gray-400 hover:border-green-200 hover:text-green-600 hover:bg-green-50/30 transition-all active:scale-[0.98]"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Add New Appliance
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t bg-gray-50 flex items-center justify-between">
+              <p className="text-xs text-gray-500">Changes will be saved to your profile and used for future tips.</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowApplianceEditor(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveAppliances}
+                  disabled={isSaving}
+                  className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-green-200 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {isSaving ? 'Saving...' : 'Save Configuration'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Alerts Section */}
       {recommendations.alerts && recommendations.alerts.length > 0 && (

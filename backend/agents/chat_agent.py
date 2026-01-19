@@ -51,8 +51,8 @@ class ChatAgent:
         if not self.llm:
             return self._rule_based_response(query)
         
-        # Build context for LLM
-        context_str = self._build_context_string()
+        # Build context for LLM with query-aware filtering
+        context_str = self._build_context_string(query)
         
         prompt = ChatPromptTemplate.from_template(
             """You are SunShift AI, an expert assistant for renewable energy forecasting and optimization.
@@ -83,100 +83,75 @@ class ChatAgent:
             logger.error(f"Error generating response: {e}")
             return self._rule_based_response(query)
     
-    def _build_context_string(self) -> str:
-        """Build comprehensive context string from available data"""
+    def _build_context_string(self, query: str = "") -> str:
+        """Build goal-oriented context string from available data to save tokens"""
         parts = []
-        parts.append("=== FORECAST CONTEXT ===\n")
+        query_lower = query.lower()
         
-        # Try to load latest predictions and insights
+        # Define keywords for context filtering
+        kw_accuracy = ['accuracy', 'error', 'mae', 'rmse', 'performance', 'reliable', 'metrics']
+        kw_forecast = ['tomorrow', 'next', 'future', 'prediction', 'forecast', 'when', 'time']
+        kw_optimize = ['optimize', 'better', 'save', 'efficient', 'strategy', 'improve', 'maximize']
+        kw_weather = ['weather', 'clouds', 'temp', 'wind', 'sun', 'irradiance', 'condition']
+        
+        # Check if query is specific
+        is_generic = not any(kw in query_lower for kw in kw_accuracy + kw_forecast + kw_optimize + kw_weather)
+        
+        parts.append("=== CONDENSED CONSOLIDATED CONTEXT ===")
+        
         try:
             import pandas as pd
             from pathlib import Path
             import json
             
-            # Load 24h predictions
+            # Load 24h predictions for general stats always (very small)
             pred_24h = config.DATA_DIR / 'predictions_24h.csv'
-            pred_7d = config.DATA_DIR / 'predictions_7d.csv'
-            
             if pred_24h.exists():
                 df = pd.read_csv(pred_24h)
-                parts.append(f"\n📊 24-Hour Forecast ({len(df)} hours):")
-                parts.append(f"  - Predicted Range: {df['predicted_output_kWh'].min():.2f} - {df['predicted_output_kWh'].max():.2f} kWh")
-                parts.append(f"  - Average: {df['predicted_output_kWh'].mean():.2f} kWh/hour")
-                parts.append(f"  - Total: {df['predicted_output_kWh'].sum():.1f} kWh")
-                parts.append(f"  - Peak Hour: {df.loc[df['predicted_output_kWh'].idxmax(), 'timestamp']}")
                 
-                # Weather context
-                if 'temperature' in df.columns:
-                    parts.append(f"\n🌡️ Weather Conditions:")
-                    parts.append(f"  - Avg Temperature: {df['temperature'].mean():.1f}°C")
-                    parts.append(f"  - Avg Wind Speed: {df['wind_speed'].mean():.1f} m/s")
-                    if 'solar_irradiance' in df.columns:
-                        parts.append(f"  - Avg Solar: {df['solar_irradiance'].mean():.0f} W/m²")
-            
-            if pred_7d.exists():
-                df7 = pd.read_csv(pred_7d)
-                parts.append(f"\n📅 7-Day Forecast:")
-                parts.append(f"  - Daily Average: {df7['total_kwh'].mean():.1f} kWh/day")
-                parts.append(f"  - Weekly Total: {df7['total_kwh'].sum():.1f} kWh")
-                parts.append(f"  - Best Day: {df7.loc[df7['total_kwh'].idxmax(), 'date']} ({df7['total_kwh'].max():.1f} kWh)")
+                # Basic stats for everyone
+                parts.append(f"Recent Forecast: Avg {df['predicted_output_kWh'].mean():.2f}kWh/h, Peak {df['predicted_output_kWh'].max():.2f}kWh, Total {df['predicted_output_kWh'].sum():.1f}kWh (24h).")
                 
-        except Exception as e:
-            logger.warning(f"Could not load predictions: {e}")
-        
-        if not self.context:
-            parts.append("\nNote: Run forecast for detailed analysis.")
-            return "\n".join(parts)
-        
-        # Add insights and analysis
-        if 'insights' in self.context:
-            insights = self.context['insights']
-            if 'analysis' in insights:
-                parts.append(f"AI Analysis:\n{insights.get('analysis', 'N/A')}\n")
-            
-            if 'metrics' in insights:
-                metrics = insights['metrics']
-                parts.append("Model Performance Metrics:")
-                parts.append(f"  - Mean Absolute Error (MAE): {metrics.get('mae', 0):.2f} kWh")
-                parts.append(f"  - Root Mean Square Error (RMSE): {metrics.get('rmse', 0):.2f} kWh")
+                # Add weather if relevant
+                if any(kw in query_lower for kw in kw_weather) or is_generic:
+                    if 'temperature' in df.columns:
+                        parts.append(f"Weather: Avg {df['temperature'].mean():.1f}°C, Wind {df['wind_speed'].mean():.1f}m/s.")
                 
-                # Calculate accuracy percentage based on actual data
-                if metrics.get('mae', 0) > 0:
-                    # Calculate accuracy based on average predicted output
-                    try:
-                        avg_output = df['predicted_output_kWh'].mean() if 'predicted_output_kWh' in df.columns else 10.0
-                        if avg_output > 0:
-                            accuracy = max(0, (1 - metrics.get('mae', 0) / avg_output) * 100)
-                        else:
-                            accuracy = 0
-                    except:
-                        accuracy = max(0, (1 - metrics.get('mae', 0) / 10) * 100)
-                    parts.append(f"  - Estimated Accuracy: {accuracy:.1f}%\n")
-        
-        # Add forecast data summary
-        if 'forecast_data' in self.context:
-            forecast = self.context['forecast_data']
-            parts.append(f"Model Type: {forecast.get('model_type', 'LSTM')}")
+                # Add detailed forecast only if relevant
+                if any(kw in query_lower for kw in kw_forecast):
+                    peak_idx = df['predicted_output_kWh'].idxmax()
+                    parts.append(f"Peak Hour: {df.loc[peak_idx, 'timestamp']} ({df.loc[peak_idx, 'predicted_output_kWh']:.2f}kWh).")
             
-            if 'predictions' in forecast:
-                preds = forecast['predictions']
-                if isinstance(preds, list) and len(preds) > 0:
-                    parts.append(f"Forecast Horizon: {len(preds)} hours")
+            # 7-day forecast only if relevant
+            if any(kw in query_lower for kw in ['week', '7 day', '7d', 'future', 'long term']):
+                pred_7d = config.DATA_DIR / 'predictions_7d.csv'
+                if pred_7d.exists():
+                    df7 = pd.read_csv(pred_7d)
+                    parts.append(f"7-Day: Avg {df7['total_kwh'].mean():.1f}kWh/day, Week Total {df7['total_kwh'].sum():.1f}kWh.")
                     
-                    # Calculate summary statistics
-                    try:
-                        import pandas as pd
-                        df = pd.DataFrame(preds)
-                        if 'predicted_output_kWh' in df.columns:
-                            parts.append(f"\nForecast Summary:")
-                            parts.append(f"  - Average Predicted Output: {df['predicted_output_kWh'].mean():.2f} kWh")
-                            parts.append(f"  - Peak Predicted Output: {df['predicted_output_kWh'].max():.2f} kWh")
-                            parts.append(f"  - Minimum Predicted Output: {df['predicted_output_kWh'].min():.2f} kWh")
-                    except:
-                        pass
+        except Exception as e:
+            logger.warning(f"Context error: {e}")
         
-        parts.append("\n=== END CONTEXT ===")
+        # Add metrics only if relevant
+        if any(kw in query_lower for kw in kw_accuracy) or is_generic:
+            if 'insights' in self.context and 'metrics' in self.context['insights']:
+                m = self.context['insights']['metrics']
+                parts.append(f"Metrics: MAE {m.get('mae', 0):.2f}, RMSE {m.get('rmse', 0):.2f}.")
+        
+        # Add AI Analysis only if relevant or generic
+        if 'insights' in self.context and 'analysis' in self.context['insights']:
+            if any(kw in query_lower for kw in kw_optimize) or is_generic:
+                # Truncate analysis to save tokens if it's too long
+                analysis = self.context['insights'].get('analysis', '')
+                if len(analysis) > 300:
+                    analysis = analysis[:297] + "..."
+                parts.append(f"AI Insight: {analysis}")
+        
+        if not parts or len(parts) <= 1:
+            parts.append("Note: Detailed forecast data not yet generated.")
+            
         return "\n".join(parts)
+
     
     def _rule_based_response(self, query: str) -> str:
         """Generate enhanced rule-based response when LLM unavailable"""

@@ -1,0 +1,52 @@
+[
+    {
+        "name": "Electric Vehicle Charging",
+        "consumption_kwh": 6.9,
+        "duration_hours": 5
+    },
+    {
+        "name": "Water Heater",
+        "consumption_kwh": 4.0,
+        "duration_hours": 2
+    },
+    {
+        "name": "Clothes Dryer",
+        "consumption_kwh": 3.0,
+        "duration_hours": 1
+    },
+    {
+        "name": "Air Conditioner (Main)",
+        "consumption_kwh": 3.5,
+        "duration_hours": 3
+    },
+    {
+        "name": "Dishwasher",
+        "consumption_kwh": 1.8,
+        "duration_hours": 2
+    },
+    {
+        "name": "Washing Machine",
+        "consumption_kwh": 1.5,
+        "duration_hours": 1
+    },
+    {
+        "name": "Laptop Charging",
+        "consumption_kwh": 0.1,
+        "duration_hours": 2
+    },
+    {
+        "name": "Vacuum Cleaner",
+        "consumption_kwh": 0.8,
+        "duration_hours": 1
+    },
+    {
+        "name": "Slow Cooker",
+        "consumption_kwh": 0.7,
+        "duration_hours": 6
+    },
+    {
+        "name": "Something New",
+        "consumption_kwh": 50.0,
+        "duration_hours": 5
+    }
+]

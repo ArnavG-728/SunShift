@@ -70,14 +70,37 @@ class RealWeatherSolarForecaster:
             
             forecast_data = []
             for item in data['list']:
+                # Extract detailed parameters based on OpenWeather API and parameters.csv
+                main = item.get('main', {})
+                wind = item.get('wind', {})
+                clouds = item.get('clouds', {})
+                rain = item.get('rain', {})
+                snow = item.get('snow', {})
+                sys = item.get('sys', {})
+                weather = item.get('weather', [{}])[0]
+                
                 forecast_data.append({
                     'timestamp': datetime.fromtimestamp(item['dt']),
-                    'temperature': item['main']['temp'],
-                    'humidity': item['main']['humidity'],
-                    'clouds': item['clouds']['all'],
-                    'wind_speed': item['wind']['speed'],
-                    'pressure': item['main']['pressure'],
-                    'weather': item['weather'][0]['main']
+                    'temperature': main.get('temp'),
+                    'temp_min': main.get('temp_min'),
+                    'temp_max': main.get('temp_max'),
+                    'feels_like': main.get('feels_like'),
+                    'pressure': main.get('pressure'),
+                    'sea_level': main.get('sea_level'),
+                    'grnd_level': main.get('grnd_level'),
+                    'humidity': main.get('humidity'),
+                    'clouds': clouds.get('all'),
+                    'wind_speed': wind.get('speed'),
+                    'wind_deg': wind.get('deg'),
+                    'wind_gust': wind.get('gust', 0), # gust is optional
+                    'visibility': item.get('visibility'),
+                    'pop': item.get('pop', 0), # Probability of precipitation
+                    'rain_3h': rain.get('3h', 0),
+                    'snow_3h': snow.get('3h', 0),
+                    'weather': weather.get('main'),
+                    'weather_desc': weather.get('description'),
+                    'weather_icon': weather.get('icon'),
+                    'pod': sys.get('pod')
                 })
             
             df = pd.DataFrame(forecast_data)
@@ -112,7 +135,14 @@ class RealWeatherSolarForecaster:
         df_merged = pd.merge(hourly_df, df, on='timestamp', how='left')
         
         # Interpolate numeric columns
-        numeric_cols = ['temperature', 'humidity', 'wind_speed', 'clouds', 'pressure']
+        numeric_cols = [
+            'temperature', 'temp_min', 'temp_max', 'feels_like', 
+            'pressure', 'sea_level', 'grnd_level', 
+            'humidity', 'clouds', 
+            'wind_speed', 'wind_deg', 'wind_gust', 
+            'visibility', 'pop', 'rain_3h', 'snow_3h'
+        ]
+        
         for col in numeric_cols:
             if col in df_merged.columns:
                 # Linear interpolation
@@ -123,33 +153,42 @@ class RealWeatherSolarForecaster:
                 if df_merged[col].isna().any():
                     defaults = {
                         'temperature': 25.0,
+                        'temp_min': 20.0,
+                        'temp_max': 30.0,
+                        'feels_like': 25.0,
+                        'pressure': 1013.0,
+                        'sea_level': 1013.0,
+                        'grnd_level': 1013.0,
                         'humidity': 60.0,
-                        'wind_speed': 3.0,
                         'clouds': 30.0,
-                        'pressure': 1013.0
+                        'wind_speed': 3.0,
+                        'wind_deg': 0.0,
+                        'wind_gust': 0.0,
+                        'visibility': 10000.0,
+                        'pop': 0.0,
+                        'rain_3h': 0.0,
+                        'snow_3h': 0.0
                     }
                     df_merged[col] = df_merged[col].fillna(defaults.get(col, 0))
         
-        # Forward fill weather description
-        if 'weather' in df_merged.columns:
-            df_merged['weather'] = df_merged['weather'].ffill().bfill()
-            # Default if still NaN
-            df_merged['weather'] = df_merged['weather'].fillna('Clear')
+        # Forward fill non-numeric columns
+        non_numeric_cols = ['weather', 'weather_desc', 'weather_icon', 'pod']
+        for col in non_numeric_cols:
+            if col in df_merged.columns:
+                df_merged[col] = df_merged[col].ffill().bfill()
+                # Default if still NaN
+                if col == 'weather':
+                    df_merged[col] = df_merged[col].fillna('Clear')
+                else:
+                    df_merged[col] = df_merged[col].fillna('')
         
         logger.info(f"✓ Interpolated to {len(df_merged)} hourly points")
         
         # Verify no NaN values remain
         nan_count = df_merged.isna().sum().sum()
         if nan_count > 0:
-            logger.warning(f"Still have {nan_count} NaN values after interpolation, filling with defaults")
-            df_merged = df_merged.fillna({
-                'temperature': 25.0,
-                'humidity': 60.0,
-                'wind_speed': 3.0,
-                'clouds': 30.0,
-                'pressure': 1013.0,
-                'weather': 'Clear'
-            })
+            logger.warning(f"Still have {nan_count} NaN values after interpolation, filling with zeros")
+            df_merged = df_merged.fillna(0)
         
         return df_merged
     
@@ -228,11 +267,24 @@ class RealWeatherSolarForecaster:
             forecast_data.append({
                 'timestamp': future_time,
                 'temperature': round(temperature, 1),
-                'humidity': round(humidity, 1),
-                'wind_speed': round(wind_speed, 1),
-                'clouds': round(clouds, 1),
+                'temp_min': round(temperature - 2, 1),
+                'temp_max': round(temperature + 2, 1),
+                'feels_like': round(temperature, 1),
                 'pressure': 1013,
-                'weather': 'Clear' if clouds < 30 else ('Clouds' if clouds < 70 else 'Overcast')
+                'sea_level': 1013,
+                'grnd_level': 1013,
+                'humidity': round(humidity, 1),
+                'clouds': round(clouds, 1),
+                'wind_speed': round(wind_speed, 1),
+                'wind_deg': np.random.randint(0, 360),
+                'wind_gust': round(wind_speed * 1.5, 1),
+                'visibility': 10000,
+                'pop': 0.0,
+                'rain_3h': 0.0,
+                'snow_3h': 0.0,
+                'weather': 'Clear' if clouds < 30 else ('Clouds' if clouds < 70 else 'Overcast'),
+                'weather_desc': 'clear sky' if clouds < 30 else ('scattered clouds' if clouds < 70 else 'overcast clouds'),
+                'weather_icon': '01d' if clouds < 30 else ('03d' if clouds < 70 else '04d')
             })
         
         logger.info(f"Generated {hours}h synthetic weather for ({lat}, {lon}): {base_temp}°C base, {seasonal_swing}° seasonal")
@@ -301,11 +353,24 @@ class RealWeatherSolarForecaster:
             extension_data.append({
                 'timestamp': future_time,
                 'temperature': round(temperature, 1),
-                'humidity': round(humidity, 1),
-                'wind_speed': round(wind_speed, 1),
-                'clouds': round(clouds, 1),
+                'temp_min': round(temperature - 2, 1),
+                'temp_max': round(temperature + 2, 1),
+                'feels_like': round(temperature, 1),
                 'pressure': 1013,
-                'weather': 'Clear' if clouds < 30 else ('Clouds' if clouds < 70 else 'Overcast')
+                'sea_level': 1013,
+                'grnd_level': 1013,
+                'humidity': round(humidity, 1),
+                'clouds': round(clouds, 1),
+                'wind_speed': round(wind_speed, 1),
+                'wind_deg': np.random.randint(0, 360),
+                'wind_gust': round(wind_speed * 1.5, 1),
+                'visibility': 10000,
+                'pop': 0.0,
+                'rain_3h': 0.0,
+                'snow_3h': 0.0,
+                'weather': 'Clear' if clouds < 30 else ('Clouds' if clouds < 70 else 'Overcast'),
+                'weather_desc': 'clear sky' if clouds < 30 else ('scattered clouds' if clouds < 70 else 'overcast clouds'),
+                'weather_icon': '01d' if clouds < 30 else ('03d' if clouds < 70 else '04d')
             })
         
         extension_df = pd.DataFrame(extension_data)
@@ -594,10 +659,24 @@ class RealWeatherSolarForecaster:
             predictions.append({
                 'timestamp': timestamp,
                 'temperature': temperature,
+                'temp_min': row.get('temp_min', temperature),
+                'temp_max': row.get('temp_max', temperature),
+                'feels_like': row.get('feels_like', temperature),
+                'pressure': row.get('pressure', 1013),
+                'sea_level': row.get('sea_level', 1013),
+                'grnd_level': row.get('grnd_level', 1013),
                 'humidity': row['humidity'],
-                'wind_speed': row['wind_speed'],
                 'clouds': clouds,
+                'wind_speed': row['wind_speed'],
+                'wind_deg': row.get('wind_deg', 0),
+                'wind_gust': row.get('wind_gust', 0),
+                'visibility': row.get('visibility', 10000),
+                'pop': row.get('pop', 0),
+                'rain_3h': row.get('rain_3h', 0),
+                'snow_3h': row.get('snow_3h', 0),
                 'weather': row.get('weather', 'Unknown'),
+                'weather_desc': row.get('weather_desc', ''),
+                'weather_icon': row.get('weather_icon', ''),
                 'solar_irradiance': solar_data['irradiance'],
                 'direct_irradiance': solar_data['direct'],
                 'diffuse_irradiance': solar_data['diffuse'],
@@ -629,10 +708,24 @@ class RealWeatherSolarForecaster:
                 predictions.append({
                     'timestamp': timestamp,
                     'temperature': temperature,
+                    'temp_min': row.get('temp_min', temperature),
+                    'temp_max': row.get('temp_max', temperature),
+                    'feels_like': row.get('feels_like', temperature),
+                    'pressure': row.get('pressure', 1013),
+                    'sea_level': row.get('sea_level', 1013),
+                    'grnd_level': row.get('grnd_level', 1013),
                     'humidity': row['humidity'],
-                    'wind_speed': row['wind_speed'],
                     'clouds': clouds,
+                    'wind_speed': row['wind_speed'],
+                    'wind_deg': row.get('wind_deg', 0),
+                    'wind_gust': row.get('wind_gust', 0),
+                    'visibility': row.get('visibility', 10000),
+                    'pop': row.get('pop', 0),
+                    'rain_3h': row.get('rain_3h', 0),
+                    'snow_3h': row.get('snow_3h', 0),
                     'weather': row.get('weather', 'Unknown'),
+                    'weather_desc': row.get('weather_desc', ''),
+                    'weather_icon': row.get('weather_icon', ''),
                     'solar_irradiance': solar_data['irradiance'],
                     'direct_irradiance': solar_data['direct'],
                     'diffuse_irradiance': solar_data['diffuse'],

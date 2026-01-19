@@ -4,7 +4,7 @@ FastAPI Backend for SunShift - Solar Energy Forecasting System
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import logging
 import pandas as pd
 
@@ -192,6 +192,8 @@ async def get_latest_forecast():
             )
         
         df = pd.read_csv(pred_path)
+        import numpy as np
+        df = df.replace({np.nan: None})
         
         return {
             "status": "success",
@@ -216,6 +218,8 @@ async def get_24h_forecast():
             raise HTTPException(status_code=404, detail="No 24h forecast available")
         
         df = pd.read_csv(pred_path)
+        import numpy as np
+        df = df.replace({np.nan: None})
         return {"status": "success", "data": df.to_dict(orient="records")}
     except HTTPException:
         raise
@@ -234,6 +238,8 @@ async def get_7d_forecast():
             raise HTTPException(status_code=404, detail="No 7d forecast available")
         
         df = pd.read_csv(pred_path)
+        import numpy as np
+        df = df.replace({np.nan: None})
         return {"status": "success", "data": df.to_dict(orient="records")}
     except HTTPException:
         raise
@@ -750,6 +756,280 @@ async def get_currency_rates(base: str = "USD"):
             }
     except Exception as e:
         logger.error(f"Error getting currency rates: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+import json
+from pathlib import Path
+
+class ApplianceItem(BaseModel):
+    name: str
+    consumption_kwh: float
+    duration_hours: int
+
+class AppliancesConfig(BaseModel):
+    appliances: List[ApplianceItem]
+
+@app.get("/appliances")
+async def get_appliances():
+    """Get the list of appliances used for optimization (always returns a flat list)"""
+    try:
+        path = config.DATA_DIR / "appliances.json"
+        if path.exists():
+            with open(path, "r") as f:
+                data = json.load(f)
+                # Migration: if it's the old category-based format, flatten it
+                if isinstance(data, dict):
+                    flat_list = []
+                    for key in ["high", "medium", "flexible"]:
+                        if key in data and isinstance(data[key], list):
+                            flat_list.extend(data[key])
+                    # If it was some other dict format, try to extract all lists
+                    if not flat_list:
+                        for val in data.values():
+                            if isinstance(val, list):
+                                flat_list.extend(val)
+                    return flat_list
+                return data
+        else:
+            # Return default flat list
+            return [
+                {"name": "EV Charging", "consumption_kwh": 7.0, "duration_hours": 4},
+                {"name": "Water Heater", "consumption_kwh": 4.0, "duration_hours": 2},
+                {"name": "Clothes Dryer", "consumption_kwh": 3.0, "duration_hours": 1},
+                {"name": "Dishwasher", "consumption_kwh": 1.8, "duration_hours": 2},
+                {"name": "Washing Machine", "consumption_kwh": 1.5, "duration_hours": 1},
+                {"name": "Pool Pump", "consumption_kwh": 1.2, "duration_hours": 3},
+                {"name": "Device Charging", "consumption_kwh": 0.5, "duration_hours": 2},
+                {"name": "Vacuum Cleaner", "consumption_kwh": 0.8, "duration_hours": 1}
+            ]
+    except Exception as e:
+        logger.error(f"Error getting appliances: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/appliances")
+async def update_appliances(appliances: List[ApplianceItem]):
+    """Update the list of appliances (accepts flat list)"""
+    try:
+        path = config.DATA_DIR / "appliances.json"
+        with open(path, "w") as f:
+            json.dump([item.dict() for item in appliances], f, indent=4)
+        return {"status": "success", "message": "Appliances updated successfully"}
+    except Exception as e:
+        logger.error(f"Error updating appliances: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==============================================================================
+# ML Model Training & Hybrid Forecasting Endpoints
+# ==============================================================================
+
+class MLTrainRequest(BaseModel):
+    """ML Model Training Request"""
+    latitude: Optional[float] = 28.6139
+    longitude: Optional[float] = 77.2090
+    days: Optional[int] = 365
+    epochs: Optional[int] = 100
+    batch_size: Optional[int] = 32
+    sequence_length: Optional[int] = 24
+    model_name: Optional[str] = "solar_forecaster"
+    force_data_refresh: Optional[bool] = False
+
+
+@app.post("/ml/train")
+async def train_ml_model(request: MLTrainRequest = MLTrainRequest()):
+    """
+    Train the ML solar forecasting model.
+    
+    This endpoint triggers the complete ML training pipeline:
+    1. Collects historical solar/weather data
+    2. Trains the LSTM model
+    3. Evaluates and saves the model
+    
+    Note: Training may take several minutes depending on data size and epochs.
+    """
+    try:
+        logger.info(f"Starting ML model training for ({request.latitude}, {request.longitude})...")
+        
+        from ml.trainer import ModelTrainer
+        
+        trainer = ModelTrainer()
+        result = trainer.train_model(
+            lat=request.latitude,
+            lon=request.longitude,
+            days=request.days,
+            epochs=request.epochs,
+            batch_size=request.batch_size,
+            sequence_length=request.sequence_length,
+            model_name=request.model_name,
+            force_data_refresh=request.force_data_refresh
+        )
+        
+        if result['status'] == 'success':
+            return {
+                "status": "success",
+                "message": "ML model trained successfully",
+                "model_name": request.model_name,
+                "training_samples": result['data_collection']['samples'],
+                "metrics": {
+                    "mae": result['training']['mae'],
+                    "rmse": result['training']['rmse'],
+                    "mape": result['training']['mape']
+                },
+                "model_path": result['model']['path']
+            }
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Training failed: {result.get('error', 'Unknown error')}"
+            )
+            
+    except Exception as e:
+        logger.error(f"Error training ML model: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/ml/status")
+async def get_ml_model_status():
+    """Get the status of the ML forecasting model."""
+    try:
+        from ml.hybrid_forecaster import HybridForecaster
+        
+        forecaster = HybridForecaster()
+        status = forecaster.get_model_status()
+        
+        return {
+            "status": "success",
+            "ml_model": status
+        }
+    except Exception as e:
+        logger.error(f"Error getting ML status: {e}")
+        return {
+            "status": "error",
+            "ml_model": {
+                "ml_available": False,
+                "error": str(e)
+            }
+        }
+
+
+@app.get("/ml/models")
+async def list_ml_models():
+    """List all available trained ML models."""
+    try:
+        from ml.trainer import ModelTrainer
+        
+        trainer = ModelTrainer()
+        models = trainer.get_available_models()
+        
+        return {
+            "status": "success",
+            "models": models,
+            "count": len(models)
+        }
+    except Exception as e:
+        logger.error(f"Error listing models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class HybridForecastRequest(BaseModel):
+    """Hybrid ML+Physics Forecast Request"""
+    latitude: Optional[float] = 28.6139
+    longitude: Optional[float] = 77.2090
+    hours: Optional[int] = 168
+    system_size: Optional[float] = 5.0
+    performance_ratio: Optional[float] = 0.78
+    panel_tilt: Optional[float] = 30.0
+    panel_azimuth: Optional[float] = 180.0
+
+
+@app.post("/forecast/hybrid")
+async def run_hybrid_forecast(request: HybridForecastRequest = HybridForecastRequest()):
+    """
+    Run hybrid ML + Physics-based forecast.
+    
+    This endpoint uses the trained ML model combined with physics-based validation
+    for more accurate predictions. If no ML model is available, it falls back to
+    physics-only forecasting.
+    """
+    try:
+        from ml.hybrid_forecaster import HybridForecaster
+        
+        logger.info(f"Running hybrid forecast for ({request.latitude}, {request.longitude})...")
+        
+        forecaster = HybridForecaster(
+            system_size_kwp=request.system_size,
+            performance_ratio=request.performance_ratio,
+            panel_tilt=request.panel_tilt,
+            panel_azimuth=request.panel_azimuth
+        )
+        
+        result = forecaster.forecast(
+            lat=request.latitude,
+            lon=request.longitude,
+            hours=request.hours
+        )
+        
+        # Persist results
+        try:
+            if result.get('hourly_24h'):
+                pd.DataFrame(result['hourly_24h']).to_csv(
+                    config.DATA_DIR / 'predictions_24h.csv', index=False
+                )
+            if result.get('daily_7d'):
+                pd.DataFrame(result['daily_7d']).to_csv(
+                    config.DATA_DIR / 'predictions_7d.csv', index=False
+                )
+        except Exception as save_err:
+            logger.warning(f"Unable to persist forecast CSVs: {save_err}")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in hybrid forecast: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/ml/quick-train")
+async def quick_train_model(
+    lat: float = 28.6139,
+    lon: float = 77.2090,
+    days: int = 90,
+    epochs: int = 50
+):
+    """
+    Quick train an ML model with minimal configuration.
+    
+    Uses sensible defaults for quick experimentation:
+    - 90 days of training data
+    - 50 epochs
+    - Default model architecture
+    """
+    try:
+        from ml.trainer import quick_train
+        
+        logger.info(f"Quick training ML model for ({lat}, {lon})...")
+        
+        result = quick_train(lat=lat, lon=lon, days=days, epochs=epochs)
+        
+        if result['status'] == 'success':
+            return {
+                "status": "success",
+                "message": "Model trained successfully",
+                "metrics": {
+                    "mae": result['training']['mae'],
+                    "rmse": result['training']['rmse'],
+                    "mape": result['training']['mape']
+                }
+            }
+        else:
+            return {
+                "status": "failed",
+                "error": result.get('error', 'Unknown error')
+            }
+            
+    except Exception as e:
+        logger.error(f"Error in quick training: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

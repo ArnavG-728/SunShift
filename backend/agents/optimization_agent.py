@@ -146,56 +146,80 @@ class OptimizationAgent:
         
         return result
     
+    def _load_appliances(self) -> List[Dict]:
+        """Load appliance configuration from JSON file (flat list)"""
+        from config import config
+        import json
+        
+        appliances_path = config.DATA_DIR / 'appliances.json'
+        
+        if appliances_path.exists():
+            try:
+                with open(appliances_path, 'r') as f:
+                    data = json.load(f)
+                    # Support legacy category-based format migration
+                    if isinstance(data, dict):
+                        flat_list = []
+                        for category in data.values():
+                            if isinstance(category, list):
+                                flat_list.extend(category)
+                        return flat_list
+                    return data if isinstance(data, list) else []
+            except Exception as e:
+                logger.error(f"Error loading appliances config: {e}")
+        
+        # Fallback to defaults
+        return [
+            {'name': 'EV Charging', 'consumption_kwh': 7.0, 'duration_hours': 4},
+            {'name': 'Water Heater', 'consumption_kwh': 4.0, 'duration_hours': 2},
+            {'name': 'Clothes Dryer', 'consumption_kwh': 3.0, 'duration_hours': 1},
+            {'name': 'Dishwasher', 'consumption_kwh': 1.8, 'duration_hours': 2},
+            {'name': 'Washing Machine', 'consumption_kwh': 1.5, 'duration_hours': 1},
+            {'name': 'Pool Pump', 'consumption_kwh': 1.2, 'duration_hours': 3},
+            {'name': 'Device Charging', 'consumption_kwh': 0.5, 'duration_hours': 2},
+            {'name': 'Vacuum Cleaner', 'consumption_kwh': 0.8, 'duration_hours': 1}
+        ]
+
     def _recommend_appliance_schedule(self, df: pd.DataFrame, energy_col: str) -> Dict:
-        """Recommend optimal times to run high-energy appliances"""
+        """Recommend optimal times to run high-energy appliances with auto-classification"""
         recommendations = {
             'high_energy_appliances': [],
             'medium_energy_appliances': [],
             'flexible_loads': []
         }
         
-        # Define appliance categories with typical consumption
-        appliances = {
-            'high': [
-                {'name': 'Electric Vehicle Charging', 'consumption_kwh': 7.0, 'duration_hours': 4},
-                {'name': 'Water Heater', 'consumption_kwh': 4.0, 'duration_hours': 2},
-                {'name': 'Clothes Dryer', 'consumption_kwh': 3.0, 'duration_hours': 1},
-            ],
-            'medium': [
-                {'name': 'Dishwasher', 'consumption_kwh': 1.8, 'duration_hours': 2},
-                {'name': 'Washing Machine', 'consumption_kwh': 1.5, 'duration_hours': 1},
-                {'name': 'Pool Pump', 'consumption_kwh': 1.2, 'duration_hours': 3},
-            ],
-            'flexible': [
-                {'name': 'Battery Charging (devices)', 'consumption_kwh': 0.5, 'duration_hours': 2},
-                {'name': 'Vacuum Cleaner', 'consumption_kwh': 0.8, 'duration_hours': 1},
-            ]
-        }
+        # Load flat list of appliances
+        all_appliances = self._load_appliances()
         
-        # Find best time windows for each appliance
-        for category, items in appliances.items():
-            for appliance in items:
-                best_time = self._find_best_time_window(
-                    df, energy_col, 
-                    appliance['consumption_kwh'], 
-                    appliance['duration_hours']
-                )
+        # Automatic Classification based on consumption_kwh
+        # High: > 2.5 kWh
+        # Medium: 1.0 - 2.5 kWh
+        # Flexible: < 1.0 kWh
+        
+        for appliance in all_appliances:
+            consumption = appliance.get('consumption_kwh', 1.0)
+            
+            best_time = self._find_best_time_window(
+                df, energy_col, 
+                consumption, 
+                appliance.get('duration_hours', 1)
+            )
+            
+            if best_time:
+                recommendation = {
+                    'appliance': appliance['name'],
+                    'best_start_time': best_time['start_time'],
+                    'expected_solar_coverage': best_time['coverage_percent'],
+                    'grid_needed_kwh': best_time['grid_needed'],
+                    'cost_savings': best_time['savings']
+                }
                 
-                if best_time:
-                    recommendation = {
-                        'appliance': appliance['name'],
-                        'best_start_time': best_time['start_time'],
-                        'expected_solar_coverage': best_time['coverage_percent'],
-                        'grid_needed_kwh': best_time['grid_needed'],
-                        'cost_savings': best_time['savings']
-                    }
-                    
-                    if category == 'high':
-                        recommendations['high_energy_appliances'].append(recommendation)
-                    elif category == 'medium':
-                        recommendations['medium_energy_appliances'].append(recommendation)
-                    else:
-                        recommendations['flexible_loads'].append(recommendation)
+                if consumption > 2.5:
+                    recommendations['high_energy_appliances'].append(recommendation)
+                elif consumption >= 1.0:
+                    recommendations['medium_energy_appliances'].append(recommendation)
+                else:
+                    recommendations['flexible_loads'].append(recommendation)
         
         return recommendations
     
