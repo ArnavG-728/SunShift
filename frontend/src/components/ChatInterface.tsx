@@ -2,9 +2,34 @@
 
 import { useState, useRef, useEffect } from 'react'
 import axios from 'axios'
-import { Send, Bot, User, Loader2, Settings, Sparkles, RefreshCw, Zap, Sun, Battery, TrendingUp } from 'lucide-react'
+import { Send, Bot, User, Loader2, Sparkles, RefreshCw, Zap, Sun, Battery, TrendingUp } from 'lucide-react'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
 import { useCurrency, getCurrencySymbol } from '@/lib/useCurrency'
+
+// Simple markdown renderer for bold (**text**) and bullet points
+const renderMarkdown = (text: string) => {
+  const lines = text.split('\n')
+  return lines.map((line, lineIdx) => {
+    // Process bold text: **text** -> <strong>text</strong>
+    const parts = line.split(/(\*\*[^*]+\*\*)/g)
+    const processedParts = parts.map((part, partIdx) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={partIdx} className="font-semibold">{part.slice(2, -2)}</strong>
+      }
+      // Handle bullet points
+      if (part.startsWith('• ') || part.startsWith('- ')) {
+        return <span key={partIdx}>{part}</span>
+      }
+      return part
+    })
+    return (
+      <span key={lineIdx}>
+        {processedParts}
+        {lineIdx < lines.length - 1 && <br />}
+      </span>
+    )
+  })
+}
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -170,26 +195,19 @@ Respond concisely and helpfully. Use bullet points for lists. Be specific to the
     }
   }
 
-  // Dynamic suggested questions based on user's system and time
+  // Suggested questions based on user's system and time
   const hour = new Date().getHours()
   const suggestedQuestions = [
     hour < 12 ? "What's my expected production today?" : "How did my system perform today?",
-    `Why might generation be ${quickStats?.clouds > 50 ? 'low' : 'high'} right now?`,
+    "What appliances should I run now to maximize solar usage?",
     config.hasBattery
-      ? "When should I discharge my battery tonight?"
+      ? "What's the optimal battery strategy for today?"
       : "Would a battery system make sense for me?",
     `How can I maximize savings with my ${config.systemSize} kWp system?`
   ]
 
-  const quickActions = [
-    { icon: Sun, label: 'Today\'s Forecast', query: "Give me today's production forecast hour by hour" },
-    { icon: Zap, label: 'Optimize Usage', query: "What appliances should I run now to maximize solar usage?" },
-    { icon: TrendingUp, label: 'Weekly Summary', query: "Summarize my expected performance for this week" },
-    { icon: Battery, label: config.hasBattery ? 'Battery Strategy' : 'Battery ROI', query: config.hasBattery ? "What's the optimal battery charging strategy for today?" : "Calculate if a battery would be worth it for my system" }
-  ]
-
   return (
-    <div className="bg-white rounded-lg shadow-lg h-[calc(100vh-12rem)] flex flex-col">
+    <div className="bg-white rounded-lg shadow-lg min-h-[calc(100vh-4rem)] md:min-h-[calc(100vh-6rem)] flex flex-col">
       {/* Chat Header */}
       <div className="border-b px-6 py-4 bg-gradient-to-r from-green-50 to-emerald-50">
         <div className="flex items-center justify-between">
@@ -245,7 +263,7 @@ Respond concisely and helpfully. Use bullet points for lists. Be specific to the
                     : 'bg-gray-100 text-gray-900'
                     }`}
                 >
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                  <div className="text-sm whitespace-pre-wrap leading-relaxed">{renderMarkdown(message.content)}</div>
                 </div>
                 <p className="text-xs text-gray-400 mt-1 px-2">
                   {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -274,37 +292,20 @@ Respond concisely and helpfully. Use bullet points for lists. Be specific to the
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Quick Actions */}
+      {/* Suggested Questions */}
       {messages.length <= 1 && (
-        <div className="px-6 pb-4 space-y-4">
-          {/* Quick Action Buttons */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {quickActions.map((action, index) => (
+        <div className="px-4 md:px-6 pb-4">
+          <p className="text-xs text-gray-400 mb-2">Suggested questions:</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {suggestedQuestions.map((question, index) => (
               <button
                 key={index}
-                onClick={() => setInput(action.query)}
-                className="flex items-center gap-2 p-3 text-left text-sm bg-white border border-gray-200 hover:border-green-300 hover:bg-green-50 rounded-xl transition-all group"
+                onClick={() => setInput(question)}
+                className="text-left text-sm bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 text-gray-700 px-3 py-2 rounded-lg transition-colors border border-green-100"
               >
-                <action.icon className="w-4 h-4 text-gray-400 group-hover:text-green-600" />
-                <span className="text-gray-700 group-hover:text-green-700 text-xs font-medium">{action.label}</span>
+                {question}
               </button>
             ))}
-          </div>
-
-          {/* Suggested Questions */}
-          <div>
-            <p className="text-xs text-gray-400 mb-2">Suggested questions:</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {suggestedQuestions.map((question, index) => (
-                <button
-                  key={index}
-                  onClick={() => setInput(question)}
-                  className="text-left text-sm bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 text-gray-700 px-3 py-2 rounded-lg transition-colors border border-green-100"
-                >
-                  {question}
-                </button>
-              ))}
-            </div>
           </div>
         </div>
       )}

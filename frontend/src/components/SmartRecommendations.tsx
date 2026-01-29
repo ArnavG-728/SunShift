@@ -311,36 +311,54 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
         </div>
       )}
 
-      {/* Summary */}
+      {/* Summary with Markdown Rendering */}
       {recommendations.summary && (
         <div className="p-4 bg-gradient-to-r from-green-50 to-blue-50 border-b">
-          <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">
-            {recommendations.summary}
-          </pre>
+          <div className="text-sm text-gray-700 leading-relaxed space-y-1">
+            {recommendations.summary.split('\n').map((line: string, idx: number) => {
+              // Handle bold text: **text** -> <strong>text</strong>
+              const parts = line.split(/(\*\*[^*]+\*\*)/g)
+              const rendered = parts.map((part: string, pIdx: number) => {
+                if (part.startsWith('**') && part.endsWith('**')) {
+                  return <strong key={pIdx} className="font-semibold text-gray-900">{part.slice(2, -2)}</strong>
+                }
+                return part
+              })
+              // Add visual bullet for lines starting with - or •
+              if (line.trim().startsWith('-') || line.trim().startsWith('•')) {
+                return <p key={idx} className="flex items-start gap-2"><span className="text-green-500 mt-0.5">•</span><span>{rendered}</span></p>
+              }
+              // Empty lines
+              if (!line.trim()) return <div key={idx} className="h-2" />
+              return <p key={idx}>{rendered}</p>
+            })}
+          </div>
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex border-b">
-        {[
-          { key: 'appliances', label: 'Appliances', icon: Zap },
-          { key: 'battery', label: 'Battery', icon: Battery, show: config.hasBattery && config.batteryCapacity > 0 },
-          { key: 'grid', label: 'Grid Strategy', icon: TrendingUp },
-          { key: 'automation', label: 'Automation', icon: Cpu },
-          { key: 'savings', label: 'Savings', icon: DollarSign }
-        ].filter(tab => tab.show !== false).map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setActiveSection(key as any)}
-            className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${activeSection === key
-              ? 'text-green-600 border-b-2 border-green-600 bg-green-50'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-              }`}
-          >
-            <Icon className="h-4 w-4" />
-            <span>{label}</span>
-          </button>
-        ))}
+      {/* Category Selection - Mobile Friendly Grid */}
+      <div className="p-3 border-b bg-gray-50/50">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,160px))] justify-center gap-2">
+          {[
+            { key: 'appliances', label: 'Appliances', icon: Zap },
+            { key: 'battery', label: 'Battery', icon: Battery, show: config.hasBattery && config.batteryCapacity > 0 },
+            { key: 'grid', label: 'Grid', icon: TrendingUp },
+            { key: 'automation', label: 'Automation', icon: Cpu },
+            { key: 'savings', label: 'Savings', icon: DollarSign }
+          ].filter(tab => tab.show !== false).map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveSection(key as any)}
+              className={`flex flex-col md:flex-row items-center justify-center gap-1 md:gap-2 px-3 py-2.5 md:px-4 md:py-2 text-xs md:text-sm font-medium rounded-xl transition-all duration-200 ${activeSection === key
+                ? 'bg-green-600 text-white shadow-lg shadow-green-200'
+                : 'bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
+                }`}
+            >
+              <Icon className="h-4 w-4" />
+              <span className="truncate">{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab Content */}
