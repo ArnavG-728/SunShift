@@ -215,7 +215,6 @@ class SolarForecasterML:
             sequence_length: Number of hours of historical data to use for prediction
             model_dir: Directory to save/load models
         """
-        """
         self.sequence_length = sequence_length
         self.model_dir = Path(model_dir) if model_dir else Path(__file__).parent / "saved_models"
         self.model_dir.mkdir(parents=True, exist_ok=True)
