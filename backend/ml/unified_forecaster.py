@@ -16,18 +16,10 @@ from pathlib import Path
 import joblib
 import os
 
-# TensorFlow imports with logging suppression
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-import tensorflow as tf
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import (
-    LSTM, Dense, Dropout, BatchNormalization, 
-    Bidirectional, Input, Conv1D, MaxPooling1D, Flatten
-)
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
-from tensorflow.keras import backend as K
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+import os
+
+# Lazy loading for heavy libraries
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' - moved to inside functions where tf is used
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +30,9 @@ def custom_loss(y_true, y_pred):
     1. Penalizes negative predictions heavily
     2. Uses Huber loss for robustness to outliers
     """
+    import tensorflow as tf
+    from tensorflow.keras import backend as K
+    
     # Huber loss (more robust to outliers than MSE)
     huber = tf.keras.losses.Huber(delta=1.0)(y_true, y_pred)
     
@@ -220,11 +215,13 @@ class SolarForecasterML:
             sequence_length: Number of hours of historical data to use for prediction
             model_dir: Directory to save/load models
         """
+        """
         self.sequence_length = sequence_length
         self.model_dir = Path(model_dir) if model_dir else Path(__file__).parent / "saved_models"
         self.model_dir.mkdir(parents=True, exist_ok=True)
         
         self.model = None
+        from sklearn.preprocessing import StandardScaler, MinMaxScaler
         self.scaler_X = StandardScaler()
         self.scaler_y = MinMaxScaler(feature_range=(0, 1))  # Ensure positive outputs
         self.feature_cols = self.FEATURE_COLS.copy()
@@ -240,7 +237,8 @@ class SolarForecasterML:
             'location': {'lat': 0, 'lon': 0}
         }
     
-    def build_model(self, input_shape: Tuple[int, int]) -> Sequential:
+    # TYPE HINT WARNING: 'Sequential' is not imported at module level, so we use 'object' or just remove hint
+    def build_model(self, input_shape: Tuple[int, int]):
         """
         Build the LSTM model architecture.
         
@@ -250,6 +248,14 @@ class SolarForecasterML:
         Returns:
             Compiled Keras model
         """
+        import tensorflow as tf
+        from tensorflow.keras.models import Sequential
+        from tensorflow.keras.layers import (
+            LSTM, Dense, Dropout, BatchNormalization, 
+            Bidirectional, Input, Conv1D
+        )
+        from tensorflow.keras.optimizers import Adam
+        
         model = Sequential([
             # Input layer
             Input(shape=input_shape),
@@ -508,6 +514,9 @@ class SolarForecasterML:
         logger.info(f"Model built with input shape: {input_shape}")
         
         # Callbacks
+        import tensorflow as tf
+        from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
+        
         callbacks = [
             EarlyStopping(
                 monitor='val_loss',
@@ -759,6 +768,7 @@ class SolarForecasterML:
         
         try:
             # Load Keras model
+            from tensorflow.keras.models import load_model
             self.model = load_model(model_path, custom_objects={'custom_loss': custom_loss})
             
             # Load artifacts

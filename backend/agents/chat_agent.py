@@ -4,7 +4,7 @@ Chat Agent - Conversational interface for user queries about forecasts
 import pandas as pd
 from typing import Dict, List, Optional
 import logging
-from langchain_google_genai import ChatGoogleGenerativeAI
+# from langchain_google_genai import ChatGoogleGenerativeAI - lazy loaded
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.memory import ConversationBufferMemory
 
@@ -23,11 +23,17 @@ class ChatAgent:
         self.context = {}
         
         if config.GOOGLE_API_KEY and config.GOOGLE_API_KEY != "your_google_api_key_here":
-            self.llm = ChatGoogleGenerativeAI(
-                model=config.GEMINI_MODEL,
-                temperature=0.7,
-                google_api_key=config.GOOGLE_API_KEY
-            )
+            try:
+                from langchain_google_genai import ChatGoogleGenerativeAI
+                self.llm = ChatGoogleGenerativeAI(
+                    model=config.GEMINI_MODEL,
+                    temperature=0.7,
+                    google_api_key=config.GOOGLE_API_KEY
+                )
+            except ImportError:
+                logger.warning("langchain_google_genai not installed or failed to import")
+            except Exception as e:
+                logger.error(f"Failed to initialize LLM: {e}")
     
     def set_context(self, forecast_data: Dict, insights: Dict):
         """Set context from forecast and insights"""
