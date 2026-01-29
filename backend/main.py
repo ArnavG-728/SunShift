@@ -27,6 +27,12 @@ app = FastAPI(
     description="SunShift - AI-Powered Solar Energy Forecasting & Analytics Platform"
 )
 
+# Initialize Database
+from database import init_db
+@app.on_event("startup")
+def on_startup():
+    init_db()
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -608,6 +614,10 @@ async def get_risk_analysis(lat: float = 28.6139, lon: float = 77.2090):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Initialize simulation engine
+from simulation.engine import SimulationEngine
+sim_engine = SimulationEngine()
+
 @app.get("/usage/unified")
 async def get_unified_usage(
     lat: float = 28.6139, 
@@ -616,17 +626,18 @@ async def get_unified_usage(
     has_battery: bool = False,
     battery_capacity: float = 0.0
 ):
-    """Get unified energy truth (Solar + Grid + Battery + EV + Gas + Water)"""
+    """Get unified energy truth (Solar + Grid + Battery + EV + Gas + Water) - USING SIMULATION ENGINE"""
     try:
-        import random
         from datetime import datetime
+        import random # Keep specific randoms for minor noise if needed
         
-        # Try to get real solar generation from weather data
+        # 1. Get Real Solar Input
         solar_gen_kw = 0.0
         try:
             from agents.realtime_data_agent import RealTimeDataAgent
             realtime_agent = RealTimeDataAgent(latitude=lat, longitude=lon)
             weather_data = realtime_agent.fetch_current_weather(lat, lon)
+            
             if weather_data:
                 clouds = weather_data.get('clouds', 50)
                 temp = weather_data.get('temperature', 25)
@@ -643,33 +654,18 @@ async def get_unified_usage(
                 solar_gen_kw = (solar_irradiance / 1000) * system_size * performance_ratio * temp_factor
         except Exception as e:
             logger.warning(f"Could not get real solar data: {e}, using estimate")
-            # Fallback: estimate based on time of day
-            hour = datetime.now().hour
-            if 6 <= hour <= 18:
-                solar_gen_kw = system_size * 0.6 * (1 - abs(hour - 12) / 12)
-            else:
-                solar_gen_kw = 0.0
+            solar_gen_kw = 0.0
+
+        # 2. Run Simulation Step
+        sim_metrics = sim_engine.tick(
+            solar_gen_kw=solar_gen_kw,
+            has_battery=has_battery,
+            battery_capacity=battery_capacity,
+            system_size=system_size
+        )
         
-        # Simulate house load (typical residential pattern)
-        hour = datetime.now().hour
-        base_load = 1.5  # Base load
-        if 7 <= hour <= 9 or 18 <= hour <= 22:
-            house_load_kw = base_load + random.uniform(1, 2.5)  # Morning/evening peaks
-        elif 9 <= hour <= 17:
-            house_load_kw = base_load + random.uniform(0.5, 1.5)  # Daytime
-        else:
-            house_load_kw = base_load + random.uniform(0, 0.5)  # Night
-        
-        # Calculate grid import/export
-        net_flow = solar_gen_kw - house_load_kw
-        grid_import_kw = max(0, -net_flow)
-        
-        # Battery state (if user has one)
-        battery_soc = 0.0
-        if has_battery and battery_capacity > 0:
-            # Simulate battery charging during excess solar
-            battery_soc = min(100, 50 + (net_flow * 10))  # Simplified
-            battery_soc = max(10, battery_soc)
+        # 3. Format Response
+        grid_import_kw = max(0, sim_metrics["grid_exchange_kw"])
         
         return {
             "status": "success",
@@ -682,21 +678,23 @@ async def get_unified_usage(
             },
             "metrics": {
                 "electricity": {
-                    "solar_gen_kw": round(max(0, solar_gen_kw), 2),
-                    "grid_import_kw": round(grid_import_kw, 2),
-                    "battery_soc_percent": round(battery_soc, 1),
-                    "house_load_kw": round(house_load_kw, 2),
-                    "net_flow_kw": round(net_flow, 2),
-                    "is_exporting": net_flow > 0
+                    "solar_gen_kw": float(round(sim_metrics["solar_gen_kw"], 2)),
+                    "grid_import_kw": float(round(grid_import_kw, 2)),
+                    "battery_soc_percent": float(round(sim_metrics["battery_soc"], 1)),
+                    "house_load_kw": float(round(sim_metrics["house_load_kw"], 2)),
+                    "net_flow_kw": float(round(-sim_metrics["grid_exchange_kw"], 2)), # Net flow is usually Solar - Load
+                    "is_exporting": bool(sim_metrics["grid_exchange_kw"] < 0),
+                    "battery_power_kw": float(round(sim_metrics["battery_power_kw"], 2)),
+                    "ev_charging_kw": float(round(sim_metrics["ev_charging_kw"], 2))
                 },
                 "transport": {
-                    "ev_charge_percent": round(random.uniform(40, 90), 1),
-                    "ev_range_km": round(random.uniform(150, 400), 1),
-                    "charging_status": random.choice(["Disconnected", "Charging", "Standby"])
+                    "ev_charge_percent": float(round(sim_metrics["ev_soc"], 1)),
+                    "ev_range_km": float(round(sim_metrics["ev_soc"] * 4.0, 1)), # Approx 4km per %
+                    "charging_status": "Charging" if sim_metrics["ev_charging_kw"] > 0 else ("Connected" if sim_metrics["ev_connected"] else "Disconnected")
                 },
                 "other_resources": {
-                    "gas_usage_m3": round(random.uniform(0.1, 0.5), 3),
-                    "water_usage_liters": round(random.uniform(5, 50), 1),
+                    "gas_usage_m3": float(round(random.uniform(0.1, 0.15), 3)), # Kept simple for now
+                    "water_usage_liters": float(round(random.uniform(5, 12), 1)),
                     "water_leak_alert": False
                 }
             }
@@ -893,7 +891,7 @@ async def train_ml_model(request: MLTrainRequest = MLTrainRequest()):
 async def get_ml_model_status():
     """Get the status of the ML forecasting model."""
     try:
-        from ml.hybrid_forecaster import HybridForecaster
+        from ml.unified_forecaster import HybridForecaster
         
         forecaster = HybridForecaster()
         status = forecaster.get_model_status()
@@ -953,7 +951,7 @@ async def run_hybrid_forecast(request: HybridForecastRequest = HybridForecastReq
     physics-only forecasting.
     """
     try:
-        from ml.hybrid_forecaster import HybridForecaster
+        from ml.unified_forecaster import HybridForecaster
         
         logger.info(f"Running hybrid forecast for ({request.latitude}, {request.longitude})...")
         

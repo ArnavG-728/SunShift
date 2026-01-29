@@ -11,7 +11,7 @@ from pathlib import Path
 import json
 
 from .data_collector import SolarDataCollector
-from .solar_forecaster import SolarForecasterML
+from .unified_forecaster import SolarForecasterML
 
 logger = logging.getLogger(__name__)
 

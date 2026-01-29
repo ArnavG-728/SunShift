@@ -494,7 +494,7 @@ class SolarDataCollector:
         panel_tilt: float = 30.0,
         panel_azimuth: float = 180.0
     ) -> pd.DataFrame:
-        """Calculate energy output as target variable"""
+        """Calculate energy output as target variable, injecting 'Virtual Shading' for ML to learn"""
         df = df.copy()
         
         # Temperature derating factor
@@ -504,14 +504,50 @@ class SolarDataCollector:
         optimal_tilt = abs(lat)  # Optimal tilt roughly equals latitude
         tilt_efficiency = 1 - 0.01 * abs(panel_tilt - optimal_tilt)  # 1% loss per degree from optimal
         
-        # Energy output (kWh)
-        df['energy_output_kWh'] = (
-            df['solar_irradiance_wm2'] / 1000.0 *  # Convert W/m² to kW/m²
+        # Base Energy output (Physics only)
+        # Convert W/m² to kW/m² -> * system size -> * efficiencies
+        base_energy = (
+            df['solar_irradiance_wm2'] / 1000.0 * 
             system_size_kwp *
             performance_ratio *
             df['temp_factor'] *
             tilt_efficiency
         )
+        
+        # --- VIRTUAL SHADING INJECTION ---
+        # We inject deterministic obstacles that the Physics Engine DOES NOT know about.
+        # This force the ML model to learn these patterns from the data, making it useful.
+        
+        # 1. "Variable East Tree": Blocks morning sun (8-10am), worse in winter (leaves? actually branches darker)
+        # Let's say it's an evergreen, so always there.
+        # Factor: 0.6 (40% loss)
+        morning_mask = (df['hour'] >= 8) & (df['hour'] <= 9)
+        morning_shade = 0.4
+        
+        # 2. "Neighbor's Chimney": Sharp drop at specific early afternoon hour (2pm)
+        # Factor: 0.3 (30% loss) just for one hour
+        chimney_mask = (df['hour'] == 14)
+        chimney_shade = 0.3
+
+        # 3. "West Building": Blocks late afternoon sun (5pm onwards)
+        # Factor: 0.8 (80% loss - nearly total shade)
+        evening_mask = (df['hour'] >= 17)
+        evening_shade = 0.8
+        
+        # Apply Shading
+        shading_factor = pd.Series(1.0, index=df.index)
+        shading_factor.loc[morning_mask] -= morning_shade
+        shading_factor.loc[chimney_mask] -= chimney_shade
+        shading_factor.loc[evening_mask] -= evening_shade
+        
+        # Clip to be safe (min 0)
+        shading_factor = shading_factor.clip(0.0, 1.0)
+
+        # Store shading info for debugging/analysis (optional)
+        df['virtual_shading_factor'] = shading_factor
+        
+        # Calculate final energy with shading
+        df['energy_output_kWh'] = base_energy * shading_factor
         
         # Ensure non-negative
         df['energy_output_kWh'] = df['energy_output_kWh'].clip(lower=0)

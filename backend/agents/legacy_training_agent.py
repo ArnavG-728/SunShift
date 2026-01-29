@@ -1,5 +1,6 @@
 """
-Forecast Agent - Trains and generates predictions using ML models
+Legacy Training Agent - Basic LSTM model training
+Note: This is a legacy agent. Consider using ml.trainer.ModelTrainer for new training workflows.
 """
 import pandas as pd
 import numpy as np
@@ -14,8 +15,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class ForecastAgent:
-    """Agent responsible for training models and generating forecasts"""
+class LegacyTrainingAgent:
+    """Legacy agent for basic LSTM training - kept for backward compatibility"""
     
     def __init__(self, model_type: str = "LSTM"):
         self.model_type = model_type
@@ -32,12 +33,12 @@ class ForecastAgent:
     
     def train_improved_lstm(self, train_data: pd.DataFrame, val_data: pd.DataFrame = None) -> Dict:
         """Train improved LSTM with bias correction and non-negative constraints"""
-        from models.improved_forecaster import ImprovedForecaster
+        from ml.unified_forecaster import SolarForecasterML
         
         logger.info("Training IMPROVED LSTM model with bias correction...")
         
         # Create improved forecaster
-        forecaster = ImprovedForecaster(sequence_length=config.LSTM_PARAMS['sequence_length'])
+        forecaster = SolarForecasterML(sequence_length=config.LSTM_PARAMS['sequence_length'])
         
         # Train
         result = forecaster.train(train_data, val_data)

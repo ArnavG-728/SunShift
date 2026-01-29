@@ -1,11 +1,11 @@
 """
-Enhanced Forecast Agent - Multi-horizon solar energy forecasting
+Solar Forecast Agent - Multi-horizon solar energy forecasting
 Uses LSTM deep learning to predict energy output at multiple time scales:
 - 24h: Hourly predictions for immediate planning
 - 7d: Daily predictions for weekly optimization
 - 4w: Weekly predictions for long-term trends
 
-This is the AI/ML core of the solar energy prediction system.
+This is the primary AI/ML forecasting agent for the solar energy prediction system.
 """
 import numpy as np
 import pandas as pd
@@ -15,15 +15,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from config import config
-from models.improved_forecaster import ImprovedForecaster
-from models.physics_based_forecaster import PhysicsBasedForecaster
+from ml.unified_forecaster import SolarForecasterML, PhysicsEngine
 
 logger = logging.getLogger(__name__)
 
 
-class EnhancedForecastAgent:
+class SolarForecastAgent:
     """
-    Enhanced forecasting agent with multiple time horizons
+    Production solar forecasting agent with multiple time horizons.
     - 24-hour: Hourly predictions for next 24 hours
     - Daily: Daily aggregated predictions for next 7 days
     - Weekly: Weekly aggregated predictions for next 4 weeks
@@ -34,7 +33,7 @@ class EnhancedForecastAgent:
         self.models_dir = config.MODELS_DIR
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.model = None
-        self.physics_model = PhysicsBasedForecaster(system_size_kwp=5.0, efficiency=0.15)
+        self.physics_model = PhysicsEngine(system_size_kwp=5.0, efficiency=0.15)
         
     def run(self, train_data: pd.DataFrame, forecast_hours: int = 168, 
             latitude: float = 28.6139, longitude: float = 77.2090) -> Dict:
@@ -61,7 +60,7 @@ class EnhancedForecastAgent:
             
             # Train improved model
             logger.info("Training improved forecaster...")
-            forecaster = ImprovedForecaster(sequence_length=24)
+            forecaster = SolarForecasterML(sequence_length=24)
             train_result = forecaster.train(train_subset, val_subset)
         except Exception as e:
             logger.error(f"Error in training: {e}", exc_info=True)

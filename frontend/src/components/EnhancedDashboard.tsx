@@ -386,27 +386,75 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
               <ResponsiveContainer width="100%" height={400}>
                 {activeHorizon === '24h' ? (
                   <AreaChart data={currentData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="time" />
-                    <YAxis label={{ value: 'Energy (kWh)', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip />
-                    <Legend />
-                    <Area type="monotone" dataKey="upper" stackId="1" stroke="none" fill="#10b98120" name="Upper Bound" />
-                    <Area type="monotone" dataKey="lower" stackId="1" stroke="none" fill="#10b98120" name="Lower Bound" />
-                    <Line type="monotone" dataKey="predicted" stroke="#10b981" strokeWidth={3} name="Predicted" dot={false} />
+                    <defs>
+                      <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorConfidence" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.1} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey="time"
+                      axisLine={{ stroke: '#e2e8f0' }}
+                      tickLine={false}
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      dy={5}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      label={{ value: 'Energy (kWh)', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11, offset: 10 }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '12px',
+                        border: '1px solid #f1f5f9',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)',
+                        fontSize: '12px'
+                      }}
+                    />
+                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
+                    <Area type="monotone" dataKey="upper" stackId="1" stroke="none" fill="url(#colorConfidence)" name="Upper Range" />
+                    <Area type="monotone" dataKey="lower" stackId="1" stroke="none" fill="url(#colorConfidence)" name="Lower Range" />
+                    <Area type="monotone" dataKey="predicted" stroke="#f97316" strokeWidth={4} fill="url(#colorPredicted)" name="Forecasted Output" dot={false} />
                   </AreaChart>
                 ) : (
                   <BarChart data={currentData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey={activeHorizon === '7d' ? 'date' : 'week'} />
-                    <YAxis label={{ value: 'Energy (kWh)', angle: -90, position: 'insideLeft' }} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="total" fill="#10b981" name="Total Energy" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis
+                      dataKey={activeHorizon === '7d' ? 'date' : 'week'}
+                      axisLine={{ stroke: '#e2e8f0' }}
+                      tickLine={false}
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      dy={5}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      label={{ value: 'Total kWh', angle: -90, position: 'insideLeft', fill: '#94a3b8', fontSize: 11, offset: 10 }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '12px',
+                        border: '1px solid #f1f5f9',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)',
+                        fontSize: '12px'
+                      }}
+                    />
+                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
+                    <Bar dataKey="total" fill="#f97316" radius={[4, 4, 0, 0]} name="Daily Total" />
                     {activeHorizon === '7d' && (
                       <>
-                        <Bar dataKey="min" fill="#3b82f6" name="Min" />
-                        <Bar dataKey="max" fill="#ef4444" name="Max" />
+                        <Bar dataKey="min" fill="#10b981" radius={[4, 4, 0, 0]} name="Minimum" />
+                        <Bar dataKey="max" fill="#fbbf24" radius={[4, 4, 0, 0]} name="Maximum" />
                       </>
                     )}
                   </BarChart>
@@ -423,43 +471,12 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
             )}
           </div>
 
-          {/* Metrics */}
-          {metrics && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Accuracy</div>
-                <div className="text-2xl font-bold text-green-600">{metrics.accuracy?.toFixed(1)}%</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">MAE</div>
-                <div className="text-2xl font-bold text-blue-600">{metrics.mae?.toFixed(2)} kWh</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">RMSE</div>
-                <div className="text-2xl font-bold text-purple-600">{metrics.rmse?.toFixed(2)} kWh</div>
-              </div>
-              <div className="bg-white rounded-lg shadow p-4">
-                <div className="text-sm text-gray-600">Bias Correction</div>
-                <div className="text-2xl font-bold text-orange-600">{metrics.bias_correction?.toFixed(3)}</div>
-              </div>
-            </div>
-          )}
+
 
           {/* AI Insights */}
           {insights && typeof insights === 'object' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Summary */}
-              {insights.summary && (
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                    <Zap className="w-5 h-5 text-blue-600" />
-                    Forecast Summary
-                  </h3>
-                  <div className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">
-                    {String(insights.summary).replace(/\*\*/g, '').replace(/^#+\s/gm, '')}
-                  </div>
-                </div>
-              )}
+
 
               {/* Next 24h */}
               {insights.next_24h && (
