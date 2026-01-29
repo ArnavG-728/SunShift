@@ -1,7 +1,7 @@
 """
 Simulation State
 Tracks the persistent state of the energy system (Battery, EV, Totals).
-Migrated from JSON to SQLite for robustness.
+Supports per-location isolation for concurrent multi-user access.
 """
 from datetime import datetime
 from database import SessionLocal
@@ -10,8 +10,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
+def generate_location_key(lat: float, lon: float) -> str:
+    """Generate a normalized location key from coordinates (2 decimal precision)."""
+    return f"{lat:.2f},{lon:.2f}"
+
+
 class SystemState:
-    def __init__(self):
+    def __init__(self, lat: float = 28.6139, lon: float = 77.2090):
+        """Initialize state for a specific location."""
+        self.location_key = generate_location_key(lat, lon)
+        
         # In-memory mirror of state
         self.state = {
             "battery_soc": 50.0,
@@ -24,11 +33,18 @@ class SystemState:
         self.load()
 
     def load(self):
-        """Load state from SQLite DB"""
+        """Load state from SQLite DB by location_key"""
         db = SessionLocal()
         try:
-            # We use ID=1 for the singleton simulation state
-            db_state = db.query(DBState).filter(DBState.id == 1).first()
+            # Query by location_key for per-location isolation
+            db_state = db.query(DBState).filter(DBState.location_key == self.location_key).first()
+            
+            # Fallback: check for legacy id=1 state if no location-specific state exists
+            if not db_state:
+                legacy_state = db.query(DBState).filter(DBState.id == 1, DBState.location_key == None).first()
+                if legacy_state:
+                    logger.info(f"Migrating legacy state to location {self.location_key}")
+                    db_state = legacy_state
             
             if db_state:
                 self.state["battery_soc"] = db_state.battery_soc
@@ -38,10 +54,10 @@ class SystemState:
                 self.state["cumulative_solar"] = db_state.total_solar_kwh
                 self.state["cumulative_grid_import"] = db_state.total_grid_import_kwh
                 self.state["cumulative_grid_export"] = db_state.total_grid_export_kwh
-                logger.debug("Loaded simulation state from DB")
+                logger.debug(f"Loaded simulation state for location {self.location_key}")
             else:
-                logger.info("No DB state found, initializing new state")
-                self.save() # Create initial record
+                logger.info(f"No DB state found for {self.location_key}, initializing new state")
+                self.save()  # Create initial record
                 
         except Exception as e:
             logger.error(f"Failed to load state from DB: {e}")
@@ -49,13 +65,13 @@ class SystemState:
             db.close()
 
     def save(self):
-        """Save current state to SQLite DB"""
+        """Save current state to SQLite DB with location isolation"""
         db = SessionLocal()
         try:
-            db_state = db.query(DBState).filter(DBState.id == 1).first()
+            db_state = db.query(DBState).filter(DBState.location_key == self.location_key).first()
             
             if not db_state:
-                db_state = DBState(id=1)
+                db_state = DBState(location_key=self.location_key)
                 db.add(db_state)
             
             # Update fields
@@ -106,3 +122,4 @@ class SystemState:
     @ev_soc.setter
     def ev_soc(self, value):
         self.state["ev_soc"] = max(0.0, min(100.0, value))
+

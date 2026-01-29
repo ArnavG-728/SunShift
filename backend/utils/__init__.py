@@ -11,6 +11,16 @@ from .validators import (
     sanitize_string
 )
 
+from .cache import (
+    TTLCache,
+    weather_cache,
+    forecast_cache,
+    currency_cache,
+    cached,
+    async_cached,
+    location_key
+)
+
 from .calculations import (
     calculate_peak_sun_hours,
     calculate_energy_output,
@@ -45,4 +55,14 @@ __all__ = [
     'calculate_capacity_factor',
     'aggregate_hourly_to_daily',
     'calculate_performance_metrics',
+    
+    # Caching
+    'TTLCache',
+    'weather_cache',
+    'forecast_cache',
+    'currency_cache',
+    'cached',
+    'async_cached',
+    'location_key',
 ]
+

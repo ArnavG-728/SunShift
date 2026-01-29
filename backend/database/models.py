@@ -3,10 +3,12 @@ from .connection import Base
 from datetime import datetime
 
 class SimulationState(Base):
-    """Stores the persistent state of the simulation tick-by-tick (or last known state)"""
+    """Stores the persistent state of the simulation per-location for concurrent multi-user support"""
     __tablename__ = "simulation_state"
     
     id = Column(Integer, primary_key=True, index=True)
+    # Location key for per-location isolation (format: "lat,lon" rounded to 2 decimals)
+    location_key = Column(String, index=True, unique=True, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # System Components

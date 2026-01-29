@@ -19,10 +19,23 @@ if DATABASE_URL.startswith("postgres://"):
 
 # SQLite-specific connection args
 connect_args = {}
+pool_config = {}
+
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+    # SQLite uses StaticPool for thread safety
+    from sqlalchemy.pool import StaticPool
+    pool_config = {"poolclass": StaticPool}
+else:
+    # PostgreSQL connection pooling for concurrent requests
+    pool_config = {
+        "pool_size": 10,          # Base concurrent connections
+        "max_overflow": 20,       # Burst capacity (total 30)
+        "pool_pre_ping": True,    # Health check before use
+        "pool_recycle": 300,      # Recycle connections every 5 min
+    }
 
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+engine = create_engine(DATABASE_URL, connect_args=connect_args, **pool_config)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

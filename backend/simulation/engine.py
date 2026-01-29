@@ -1,6 +1,7 @@
 """
 Simulation Engine
 Coordinates Solar, Load, Battery, and Grid logic to produce realistic real-time values.
+Supports per-location isolation for concurrent multi-user access.
 """
 from datetime import datetime
 import random
@@ -8,8 +9,9 @@ from .state import SystemState
 from .profiles import LoadProfiles
 
 class SimulationEngine:
-    def __init__(self):
-        self.state = SystemState()
+    def __init__(self, lat: float = 28.6139, lon: float = 77.2090):
+        """Create a simulation engine for a specific location."""
+        self.state = SystemState(lat=lat, lon=lon)
         self.profiles = LoadProfiles()
 
     def tick(self, 

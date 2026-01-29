@@ -614,9 +614,11 @@ async def get_risk_analysis(lat: float = 28.6139, lon: float = 77.2090):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Initialize simulation engine
+# Import simulation engine for per-request instantiation (no global instance)
 from simulation.engine import SimulationEngine
-sim_engine = SimulationEngine()
+
+# Import caching utilities
+from utils.cache import weather_cache, location_key
 
 @app.get("/usage/unified")
 async def get_unified_usage(
@@ -629,34 +631,52 @@ async def get_unified_usage(
     """Get unified energy truth (Solar + Grid + Battery + EV + Gas + Water) - USING SIMULATION ENGINE"""
     try:
         from datetime import datetime
-        import random # Keep specific randoms for minor noise if needed
+        import random
         
-        # 1. Get Real Solar Input
+        # Create location-specific simulation engine (per-request, not global)
+        sim_engine = SimulationEngine(lat=lat, lon=lon)
+        
+        # 1. Get Real Solar Input (with caching)
         solar_gen_kw = 0.0
-        try:
+        cache_key = location_key(lat, lon)
+        
+        # Check cache first for weather data
+        cached_weather = weather_cache.get(cache_key)
+        
+        if cached_weather:
+            weather_data = cached_weather
+            logger.debug(f"Using cached weather for {cache_key}")
+        else:
+            try:
+                from agents.realtime_data_agent import RealTimeDataAgent
+                realtime_agent = RealTimeDataAgent(latitude=lat, longitude=lon)
+                weather_data = realtime_agent.fetch_current_weather(lat, lon)
+                
+                if weather_data:
+                    # Cache the weather data for 5 minutes
+                    weather_cache.set(cache_key, weather_data, ttl=300)
+            except Exception as e:
+                logger.warning(f"Could not get real solar data: {e}, using estimate")
+                weather_data = None
+        
+        if weather_data:
+            clouds = weather_data.get('clouds', 50)
+            temp = weather_data.get('temperature', 25)
+            
+            # Calculate solar using real weather
             from agents.realtime_data_agent import RealTimeDataAgent
             realtime_agent = RealTimeDataAgent(latitude=lat, longitude=lon)
-            weather_data = realtime_agent.fetch_current_weather(lat, lon)
+            solar_irradiance = realtime_agent.calculate_solar_irradiance(datetime.now(), clouds, lat, lon)
             
-            if weather_data:
-                clouds = weather_data.get('clouds', 50)
-                temp = weather_data.get('temperature', 25)
-                
-                # Calculate solar using real weather
-                solar_irradiance = realtime_agent.calculate_solar_irradiance(datetime.now(), clouds, lat, lon)
-                
-                # Temperature derating
-                temp_factor = 1 - 0.004 * max(0, temp - 25)
-                temp_factor = max(0.7, min(1.0, temp_factor))
-                
-                # Calculate actual output
-                performance_ratio = 0.78
-                solar_gen_kw = (solar_irradiance / 1000) * system_size * performance_ratio * temp_factor
-        except Exception as e:
-            logger.warning(f"Could not get real solar data: {e}, using estimate")
-            solar_gen_kw = 0.0
+            # Temperature derating
+            temp_factor = 1 - 0.004 * max(0, temp - 25)
+            temp_factor = max(0.7, min(1.0, temp_factor))
+            
+            # Calculate actual output
+            performance_ratio = 0.78
+            solar_gen_kw = (solar_irradiance / 1000) * system_size * performance_ratio * temp_factor
 
-        # 2. Run Simulation Step
+        # 2. Run Simulation Step (isolated per location)
         sim_metrics = sim_engine.tick(
             solar_gen_kw=solar_gen_kw,
             has_battery=has_battery,
@@ -682,18 +702,18 @@ async def get_unified_usage(
                     "grid_import_kw": float(round(grid_import_kw, 2)),
                     "battery_soc_percent": float(round(sim_metrics["battery_soc"], 1)),
                     "house_load_kw": float(round(sim_metrics["house_load_kw"], 2)),
-                    "net_flow_kw": float(round(-sim_metrics["grid_exchange_kw"], 2)), # Net flow is usually Solar - Load
+                    "net_flow_kw": float(round(-sim_metrics["grid_exchange_kw"], 2)),
                     "is_exporting": bool(sim_metrics["grid_exchange_kw"] < 0),
                     "battery_power_kw": float(round(sim_metrics["battery_power_kw"], 2)),
                     "ev_charging_kw": float(round(sim_metrics["ev_charging_kw"], 2))
                 },
                 "transport": {
                     "ev_charge_percent": float(round(sim_metrics["ev_soc"], 1)),
-                    "ev_range_km": float(round(sim_metrics["ev_soc"] * 4.0, 1)), # Approx 4km per %
+                    "ev_range_km": float(round(sim_metrics["ev_soc"] * 4.0, 1)),
                     "charging_status": "Charging" if sim_metrics["ev_charging_kw"] > 0 else ("Connected" if sim_metrics["ev_connected"] else "Disconnected")
                 },
                 "other_resources": {
-                    "gas_usage_m3": float(round(random.uniform(0.1, 0.15), 3)), # Kept simple for now
+                    "gas_usage_m3": float(round(random.uniform(0.1, 0.15), 3)),
                     "water_usage_liters": float(round(random.uniform(5, 12), 1)),
                     "water_leak_alert": False
                 }
