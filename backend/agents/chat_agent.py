@@ -1,12 +1,6 @@
-"""
-Chat Agent - Conversational interface for user queries about forecasts
-"""
 import pandas as pd
 from typing import Dict, List, Optional
 import logging
-# from langchain_google_genai import ChatGoogleGenerativeAI - lazy loaded
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.memory import ConversationBufferMemory
 
 from config import config
 
@@ -19,8 +13,16 @@ class ChatAgent:
     
     def __init__(self):
         self.llm = None
-        self.memory = ConversationBufferMemory()
+        self.memory = None
         self.context = {}
+        
+        # Lazy load memory
+        try:
+            from langchain.memory import ConversationBufferMemory
+            self.memory = ConversationBufferMemory()
+        except ImportError:
+            logger.warning("langchain.memory not available")
+            self.memory = None
         
         if config.GOOGLE_API_KEY and config.GOOGLE_API_KEY != "your_google_api_key_here":
             try:
@@ -60,33 +62,35 @@ class ChatAgent:
         # Build context for LLM with query-aware filtering
         context_str = self._build_context_string(query)
         
-        prompt = ChatPromptTemplate.from_template(
-            """You are SunShift AI, an expert assistant for renewable energy forecasting and optimization.
-            
-            You have access to the following forecast data and context:
-            {context}
-            
-            User Question: {query}
-            
-            Instructions:
-            1. Provide accurate, data-driven responses based on the forecast context
-            2. Reference specific metrics, values, and trends when available
-            3. Explain technical concepts in clear, accessible language
-            4. Offer actionable recommendations for energy optimization
-            5. If data is missing, acknowledge it and suggest how to obtain it
-            6. Be concise but comprehensive - aim for 2-4 sentences
-            7. Use specific numbers and percentages when discussing accuracy or predictions
-            
-            Response:"""
-        )
-        
         try:
+            from langchain_core.prompts import ChatPromptTemplate
+            
+            prompt = ChatPromptTemplate.from_template(
+                """You are SunShift AI, an expert assistant for renewable energy forecasting and optimization.
+                
+                You have access to the following forecast data and context:
+                {context}
+                
+                User Question: {query}
+                
+                Instructions:
+                1. Provide accurate, data-driven responses based on the forecast context
+                2. Reference specific metrics, values, and trends when available
+                3. Explain technical concepts in clear, accessible language
+                4. Offer actionable recommendations for energy optimization
+                5. If data is missing, acknowledge it and suggest how to obtain it
+                6. Be concise but comprehensive - aim for 2-4 sentences
+                7. Use specific numbers and percentages when discussing accuracy or predictions
+                
+                Response:"""
+            )
+            
             response = self.llm.invoke(
                 prompt.format(context=context_str, query=query)
             )
             return response.content
         except Exception as e:
-            logger.error(f"Error generating response: {e}")
+            logger.error(f"Error generating response or import error: {e}")
             return self._rule_based_response(query)
     
     def _build_context_string(self, query: str = "") -> str:
