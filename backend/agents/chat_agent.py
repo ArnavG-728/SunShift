@@ -5,7 +5,7 @@ import pandas as pd
 from typing import Dict, List, Optional
 import logging
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 from langchain.memory import ConversationBufferMemory
 
 from config import config

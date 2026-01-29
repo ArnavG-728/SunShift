@@ -6,7 +6,7 @@ from typing import Dict, List
 import logging
 import json
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate
 
 from config import config
 

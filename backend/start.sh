@@ -1,3 +1,3 @@
 #!/bin/bash
-# Start Gunicorn with Uvicorn workers
-exec gunicorn main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT
+# Start Uvicorn directly
+python -m uvicorn main:app --host 0.0.0.0 --port $PORT
