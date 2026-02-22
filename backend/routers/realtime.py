@@ -11,7 +11,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/realtime", tags=["realtime"])
 
 @router.get("/current")
-async def get_current_weather(lat: float = 28.6139, lon: float = 77.2090, system_size: float = 5.0, performance_ratio: float = 0.78):
+async def get_current_weather(
+    lat: float = 28.6139, 
+    lon: float = 77.2090, 
+    system_size: float = 5.0, 
+    performance_ratio: float = 0.78,
+    panel_tilt: float = 30.0,
+    panel_azimuth: float = 180.0
+):
     """Get current real-time weather data for specified coordinates"""
     try:
         from agents.realtime_data_agent import RealTimeDataAgent
@@ -31,7 +38,10 @@ async def get_current_weather(lat: float = 28.6139, lon: float = 77.2090, system
             local_time, 
             current["clouds"],
             lat=lat,
-            lon=lon
+            lon=lon,
+            system_size=system_size,
+            panel_tilt=panel_tilt,
+            panel_azimuth=panel_azimuth
         )
         
         # Calculate energy output using the irradiance we already computed
@@ -52,7 +62,9 @@ async def get_current_weather(lat: float = 28.6139, lon: float = 77.2090, system
             lat=lat,
             lon=lon,
             system_size_kwp=system_size,
-            performance_ratio=performance_ratio
+            performance_ratio=performance_ratio,
+            panel_tilt=panel_tilt,
+            panel_azimuth=panel_azimuth
         )
         
         # Get sunrise/sunset times

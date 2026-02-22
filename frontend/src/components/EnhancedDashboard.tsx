@@ -66,7 +66,14 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
 
       // Fetch Current Weather (for cloud loss)
       const weatherRes = await axios.get(`${API_BASE_URL}/realtime/current`, {
-        params: { lat: config.latitude, lon: config.longitude, system_size: config.systemSize }
+        params: {
+          lat: config.latitude,
+          lon: config.longitude,
+          system_size: config.systemSize,
+          performance_ratio: config.performanceRatio,
+          panel_tilt: config.panelTilt,
+          panel_azimuth: config.panelAzimuth
+        }
       }).catch(() => null)
       if (weatherRes?.data?.data) setCurrentWeather(weatherRes.data.data)
 
@@ -135,7 +142,7 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
       setHasInitialLoad(true)
     }
     loadData()
-  }, [config.latitude, config.longitude])
+  }, [config.latitude, config.longitude, config.systemSize, config.performanceRatio, config.panelTilt, config.panelAzimuth])
 
   // Auto-refresh
   useEffect(() => {
@@ -143,7 +150,7 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
       const interval = setInterval(fetchLatestData, 120000) // 2 minutes
       return () => clearInterval(interval)
     }
-  }, [autoRefresh, hourly24h])
+  }, [autoRefresh, hourly24h, config.latitude, config.longitude, config.systemSize, config.performanceRatio, config.panelTilt, config.panelAzimuth])
 
   const formatHourlyData = (data: any[]) => {
     return data.map(d => ({

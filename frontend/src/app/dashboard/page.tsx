@@ -32,7 +32,9 @@ export default function Dashboard() {
                         lat: config.latitude,
                         lon: config.longitude,
                         system_size: config.systemSize,
-                        performance_ratio: config.performanceRatio
+                        performance_ratio: config.performanceRatio,
+                        panel_tilt: config.panelTilt,
+                        panel_azimuth: config.panelAzimuth
                     }
                 })
                 if (response.data.status === 'success') {
@@ -49,7 +51,7 @@ export default function Dashboard() {
             const interval = setInterval(fetchDayNightStatus, 300000)
             return () => clearInterval(interval)
         }
-    }, [config.latitude, config.longitude, config.systemSize, config.performanceRatio])
+    }, [config.latitude, config.longitude, config.systemSize, config.performanceRatio, config.panelTilt, config.panelAzimuth])
 
     useEffect(() => {
         setMounted(true)

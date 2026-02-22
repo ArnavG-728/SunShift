@@ -1,6 +1,10 @@
 import { User } from 'lucide-react'
+import { useSystemConfig } from '@/lib/SystemConfigContext'
 
 export default function SimpleModeView({ currentWeather }: { currentWeather: any }) {
+    const { config } = useSystemConfig()
+    const electricityTariff = config?.electricityTariff || 0.12
+
     return (
         <div className="bg-white rounded-3xl shadow-xl p-8 border border-green-100">
             <div className="text-center mb-10">
@@ -20,7 +24,7 @@ export default function SimpleModeView({ currentWeather }: { currentWeather: any
 
                 <div className="p-8 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 text-white text-center shadow-lg shadow-blue-200">
                     <p className="text-blue-100 text-sm uppercase tracking-widest font-bold mb-2">Wallet Status</p>
-                    <div className="text-6xl font-black mb-2">${((currentWeather?.energy_output_kWh || 0) * 0.12).toFixed(2)}</div>
+                    <div className="text-6xl font-black mb-2">${((currentWeather?.energy_output_kWh || 0) * electricityTariff).toFixed(2)}</div>
                     <p className="text-blue-50 opacity-90">Estimated savings today</p>
                 </div>
             </div>

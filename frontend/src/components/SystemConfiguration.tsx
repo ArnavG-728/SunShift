@@ -23,11 +23,40 @@ export default function SystemConfiguration() {
   const [errors, setErrors] = useState<string[]>([])
   const [showRecommendations, setShowRecommendations] = useState(false)
 
-  // Validate on config changes
+  // Local pending state for manual saves
+  const [pendingConfig, setPendingConfig] = useState<SystemConfig>(config)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // Keep pendingConfig in sync with global config when it loads/changes externally
   useEffect(() => {
-    const validationErrors = validateConfig(config)
-    setErrors(validationErrors)
+    setPendingConfig(config)
+    setHasUnsavedChanges(false)
   }, [config])
+
+  // Validate on pending config changes
+  useEffect(() => {
+    const validationErrors = validateConfig(pendingConfig)
+    setErrors(validationErrors)
+
+    // Check if pending differs from actual
+    setHasUnsavedChanges(JSON.stringify(pendingConfig) !== JSON.stringify(config))
+  }, [pendingConfig, config])
+
+  const updatePendingConfig = (updates: Partial<SystemConfig>) => {
+    setPendingConfig(prev => ({ ...prev, ...updates }))
+  }
+
+  const handleSave = () => {
+    if (errors.length === 0) {
+      updateConfig(pendingConfig)
+      setHasUnsavedChanges(false)
+    }
+  }
+
+  const handleDiscard = () => {
+    setPendingConfig(config)
+    setHasUnsavedChanges(false)
+  }
 
   const handleExport = () => {
     exportPreferences()
@@ -49,8 +78,8 @@ export default function SystemConfiguration() {
   }
 
   const handleLocationChange = (location: { latitude: number; longitude: number; city: string }) => {
-    // Update location - this will trigger all components to refetch
-    updateConfig({
+    // Update pending location
+    updatePendingConfig({
       latitude: location.latitude,
       longitude: location.longitude,
       city: location.city
@@ -59,7 +88,7 @@ export default function SystemConfiguration() {
 
   const applyPreset = (presetKey: keyof typeof PRESET_CONFIGS) => {
     const preset = PRESET_CONFIGS[presetKey]
-    updateConfig({
+    updatePendingConfig({
       systemSize: preset.systemSize,
       panelEfficiency: preset.panelEfficiency,
       performanceRatio: preset.performanceRatio
@@ -67,10 +96,10 @@ export default function SystemConfiguration() {
   }
 
   const applyOptimalOrientation = () => {
-    const optimalTilt = calculateOptimalTilt(config.latitude)
-    const optimalAzimuth = calculateOptimalAzimuth(config.latitude)
+    const optimalTilt = calculateOptimalTilt(pendingConfig.latitude)
+    const optimalAzimuth = calculateOptimalAzimuth(pendingConfig.latitude)
 
-    updateConfig({
+    updatePendingConfig({
       panelTilt: optimalTilt,
       panelAzimuth: optimalAzimuth
     })
@@ -78,7 +107,7 @@ export default function SystemConfiguration() {
     alert(`✅ Applied optimal orientation:\nTilt: ${optimalTilt}°\nAzimuth: ${optimalAzimuth}°`)
   }
 
-  const recommendations = getLocationRecommendations(config.latitude)
+  const recommendations = getLocationRecommendations(pendingConfig.latitude)
 
   if (isLoading) {
     return (
@@ -142,15 +171,30 @@ export default function SystemConfiguration() {
       {/* Configuration Panel */}
       {isOpen && (
         <div className="p-4">
-          {/* Info Banner */}
-          <div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-lg">
-            <div className="flex items-center gap-2 text-blue-700">
-              <RefreshCw className="h-4 w-4" />
-              <span className="text-sm font-medium">Real-Time Sync Active</span>
+          {/* Header Action Buttons inside Config Panel */}
+          <div className="flex items-center justify-between mb-4 pb-4 border-b">
+            <h3 className="text-lg font-medium text-gray-800">Configuration Options</h3>
+            <div className="flex items-center gap-2">
+              {hasUnsavedChanges && (
+                <button
+                  onClick={handleDiscard}
+                  className="px-4 py-2 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors font-medium"
+                >
+                  Discard Changes
+                </button>
+              )}
+              <button
+                onClick={handleSave}
+                disabled={!hasUnsavedChanges || errors.length > 0}
+                className={`flex items-center space-x-2 px-6 py-2 rounded-md text-sm font-medium transition-colors ${hasUnsavedChanges && errors.length === 0
+                    ? 'bg-gradient-to-r from-teal-500 to-indigo-500 text-white shadow-md hover:shadow-lg transform hover:-translate-y-0.5'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+              >
+                <Save className="h-4 w-4" />
+                <span>Save Configuration</span>
+              </button>
             </div>
-            <p className="text-xs text-blue-600 mt-1">
-              All changes update dashboard components automatically. No save button needed!
-            </p>
           </div>
 
           {/* Errors */}
@@ -197,8 +241,8 @@ export default function SystemConfiguration() {
                     </label>
                     <input
                       type="number"
-                      value={config.systemSize}
-                      onChange={(e) => updateConfig({ systemSize: parseFloat(e.target.value) || 0 })}
+                      value={pendingConfig.systemSize}
+                      onChange={(e) => updatePendingConfig({ systemSize: parseFloat(e.target.value) || 0 })}
                       className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                       step="0.1"
                       min="0"
@@ -211,8 +255,8 @@ export default function SystemConfiguration() {
                     </label>
                     <input
                       type="number"
-                      value={(config.panelEfficiency * 100).toFixed(1)}
-                      onChange={(e) => updateConfig({ panelEfficiency: (parseFloat(e.target.value) || 0) / 100 })}
+                      value={(pendingConfig.panelEfficiency * 100).toFixed(1)}
+                      onChange={(e) => updatePendingConfig({ panelEfficiency: (parseFloat(e.target.value) || 0) / 100 })}
                       className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                       step="0.1"
                       min="0"
@@ -226,8 +270,8 @@ export default function SystemConfiguration() {
                     </label>
                     <input
                       type="number"
-                      value={config.panelTilt}
-                      onChange={(e) => updateConfig({ panelTilt: parseFloat(e.target.value) || 0 })}
+                      value={pendingConfig.panelTilt}
+                      onChange={(e) => updatePendingConfig({ panelTilt: parseFloat(e.target.value) || 0 })}
                       className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                       step="1"
                       min="0"
@@ -241,8 +285,8 @@ export default function SystemConfiguration() {
                     </label>
                     <input
                       type="number"
-                      value={config.panelAzimuth}
-                      onChange={(e) => updateConfig({ panelAzimuth: parseFloat(e.target.value) || 0 })}
+                      value={pendingConfig.panelAzimuth}
+                      onChange={(e) => updatePendingConfig({ panelAzimuth: parseFloat(e.target.value) || 0 })}
                       className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                       step="1"
                       min="0"
@@ -257,8 +301,8 @@ export default function SystemConfiguration() {
                     </label>
                     <input
                       type="number"
-                      value={config.performanceRatio}
-                      onChange={(e) => updateConfig({ performanceRatio: parseFloat(e.target.value) || 0 })}
+                      value={pendingConfig.performanceRatio}
+                      onChange={(e) => updatePendingConfig({ performanceRatio: parseFloat(e.target.value) || 0 })}
                       className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                       step="0.01"
                       min="0"
@@ -290,7 +334,7 @@ export default function SystemConfiguration() {
                     className="flex items-center space-x-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100"
                   >
                     <Info className="h-4 w-4" />
-                    <span className="text-sm">Apply Optimal Orientation for {config.city}</span>
+                    <span className="text-sm">Suggest Optimal Orientation for {pendingConfig.city}</span>
                   </button>
                 </div>
               </>
@@ -304,13 +348,13 @@ export default function SystemConfiguration() {
                     Location
                   </label>
                   <LocationSelector
-                    latitude={config.latitude}
-                    longitude={config.longitude}
-                    city={config.city}
+                    latitude={pendingConfig.latitude}
+                    longitude={pendingConfig.longitude}
+                    city={pendingConfig.city}
                     onLocationChange={handleLocationChange}
                   />
                   <p className="text-xs text-gray-500 mt-2">
-                    Changing location updates all weather and forecast data automatically
+                    Finding a new location will update coordinates below, click Save to apply.
                   </p>
                 </div>
 
@@ -322,8 +366,8 @@ export default function SystemConfiguration() {
                       <label className="block text-sm text-gray-600 mb-1">City Name</label>
                       <input
                         type="text"
-                        value={config.city}
-                        onChange={(e) => updateConfig({ city: e.target.value })}
+                        value={pendingConfig.city}
+                        onChange={(e) => updatePendingConfig({ city: e.target.value })}
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 text-sm"
                       />
                     </div>
@@ -332,8 +376,8 @@ export default function SystemConfiguration() {
                       <label className="block text-sm text-gray-600 mb-1">Timezone</label>
                       <input
                         type="text"
-                        value={config.timezone}
-                        onChange={(e) => updateConfig({ timezone: e.target.value })}
+                        value={pendingConfig.timezone}
+                        onChange={(e) => updatePendingConfig({ timezone: e.target.value })}
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 text-sm"
                         placeholder="e.g., Asia/Kolkata"
                       />
@@ -343,8 +387,8 @@ export default function SystemConfiguration() {
                       <label className="block text-sm text-gray-600 mb-1">Latitude</label>
                       <input
                         type="number"
-                        value={config.latitude}
-                        onChange={(e) => updateConfig({ latitude: parseFloat(e.target.value) || 0 })}
+                        value={pendingConfig.latitude}
+                        onChange={(e) => updatePendingConfig({ latitude: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 text-sm"
                         step="0.0001"
                         min="-90"
@@ -356,8 +400,8 @@ export default function SystemConfiguration() {
                       <label className="block text-sm text-gray-600 mb-1">Longitude</label>
                       <input
                         type="number"
-                        value={config.longitude}
-                        onChange={(e) => updateConfig({ longitude: parseFloat(e.target.value) || 0 })}
+                        value={pendingConfig.longitude}
+                        onChange={(e) => updatePendingConfig({ longitude: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 text-sm"
                         step="0.0001"
                         min="-180"
@@ -374,12 +418,12 @@ export default function SystemConfiguration() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Electricity Tariff ({getCurrencySymbol(config.currency)}/kWh)
+                    Electricity Tariff ({getCurrencySymbol(pendingConfig.currency)}/kWh)
                   </label>
                   <input
                     type="number"
-                    value={config.electricityTariff}
-                    onChange={(e) => updateConfig({ electricityTariff: parseFloat(e.target.value) || 0 })}
+                    value={pendingConfig.electricityTariff}
+                    onChange={(e) => updatePendingConfig({ electricityTariff: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                     step="0.01"
                     min="0"
@@ -388,12 +432,12 @@ export default function SystemConfiguration() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Feed-in Tariff ({getCurrencySymbol(config.currency)}/kWh)
+                    Feed-in Tariff ({getCurrencySymbol(pendingConfig.currency)}/kWh)
                   </label>
                   <input
                     type="number"
-                    value={config.feedInTariff}
-                    onChange={(e) => updateConfig({ feedInTariff: parseFloat(e.target.value) || 0 })}
+                    value={pendingConfig.feedInTariff}
+                    onChange={(e) => updatePendingConfig({ feedInTariff: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                     step="0.01"
                     min="0"
@@ -406,8 +450,8 @@ export default function SystemConfiguration() {
                   </label>
                   <input
                     type="number"
-                    value={config.gridCO2Factor}
-                    onChange={(e) => updateConfig({ gridCO2Factor: parseFloat(e.target.value) || 0 })}
+                    value={pendingConfig.gridCO2Factor}
+                    onChange={(e) => updatePendingConfig({ gridCO2Factor: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                     step="0.01"
                     min="0"
@@ -419,8 +463,8 @@ export default function SystemConfiguration() {
                     Currency
                   </label>
                   <select
-                    value={config.currency}
-                    onChange={(e) => updateConfig({ currency: e.target.value })}
+                    value={pendingConfig.currency}
+                    onChange={(e) => updatePendingConfig({ currency: e.target.value })}
                     className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                   >
                     <option value="USD">USD ($)</option>
@@ -443,8 +487,8 @@ export default function SystemConfiguration() {
                   <input
                     type="checkbox"
                     id="hasBattery"
-                    checked={config.hasBattery}
-                    onChange={(e) => updateConfig({ hasBattery: e.target.checked })}
+                    checked={pendingConfig.hasBattery}
+                    onChange={(e) => updatePendingConfig({ hasBattery: e.target.checked })}
                     className="rounded text-green-600 focus:ring-green-500"
                   />
                   <label htmlFor="hasBattery" className="text-sm font-medium text-gray-700">
@@ -452,7 +496,7 @@ export default function SystemConfiguration() {
                   </label>
                 </div>
 
-                {config.hasBattery && (
+                {pendingConfig.hasBattery && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pl-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -460,8 +504,8 @@ export default function SystemConfiguration() {
                       </label>
                       <input
                         type="number"
-                        value={config.batteryCapacity}
-                        onChange={(e) => updateConfig({ batteryCapacity: parseFloat(e.target.value) || 0 })}
+                        value={pendingConfig.batteryCapacity}
+                        onChange={(e) => updatePendingConfig({ batteryCapacity: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                         step="0.1"
                         min="0"
@@ -474,8 +518,8 @@ export default function SystemConfiguration() {
                       </label>
                       <input
                         type="number"
-                        value={(config.batteryEfficiency * 100).toFixed(0)}
-                        onChange={(e) => updateConfig({ batteryEfficiency: (parseFloat(e.target.value) || 0) / 100 })}
+                        value={(pendingConfig.batteryEfficiency * 100).toFixed(0)}
+                        onChange={(e) => updatePendingConfig({ batteryEfficiency: (parseFloat(e.target.value) || 0) / 100 })}
                         className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500"
                         step="1"
                         min="0"

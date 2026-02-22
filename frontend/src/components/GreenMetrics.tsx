@@ -45,7 +45,7 @@ export default function GreenMetrics() {
     fetchAll()
     const interval = setInterval(fetchAll, 120000)
     return () => clearInterval(interval)
-  }, [config.latitude, config.longitude, config.systemSize, config.gridCO2Factor, config.electricityTariff])
+  }, [config.latitude, config.longitude, config.systemSize, config.gridCO2Factor, config.electricityTariff, config.performanceRatio, config.panelTilt, config.panelAzimuth])
 
   const fetchAll = async () => {
     try {
@@ -75,6 +75,8 @@ export default function GreenMetrics() {
             lon: config.longitude,
             system_size: config.systemSize,
             performance_ratio: config.performanceRatio,
+            panel_tilt: config.panelTilt,
+            panel_azimuth: config.panelAzimuth
           },
         }).catch(() => null)
 

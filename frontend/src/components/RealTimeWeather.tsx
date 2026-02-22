@@ -23,7 +23,9 @@ export default function RealTimeWeather() {
           lat: config.latitude,
           lon: config.longitude,
           system_size: config.systemSize,
-          performance_ratio: config.performanceRatio
+          performance_ratio: config.performanceRatio,
+          panel_tilt: config.panelTilt,
+          panel_azimuth: config.panelAzimuth
         }
       })
       if (response.data.status === 'success') {
@@ -44,7 +46,7 @@ export default function RealTimeWeather() {
     // Refresh every 2 minutes
     const interval = setInterval(fetchWeather, 120000)
     return () => clearInterval(interval)
-  }, [config.latitude, config.longitude, config.systemSize, config.performanceRatio])
+  }, [config.latitude, config.longitude, config.systemSize, config.performanceRatio, config.panelTilt, config.panelAzimuth])
 
   const manualRefresh = () => {
     if (!refreshing) {

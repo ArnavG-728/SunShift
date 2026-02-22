@@ -120,7 +120,10 @@ async def get_unified_usage(
     lon: float = 77.2090,
     system_size: float = 5.0,
     has_battery: bool = False,
-    battery_capacity: float = 0.0
+    battery_capacity: float = 0.0,
+    performance_ratio: float = 0.78,
+    panel_tilt: float = 30.0,
+    panel_azimuth: float = 180.0
 ):
     """Get unified energy truth (Solar + Grid + Battery + EV + Gas + Water) - USING SIMULATION ENGINE"""
     try:
@@ -157,17 +160,24 @@ async def get_unified_usage(
             clouds = weather_data.get('clouds', 50)
             temp = weather_data.get('temperature', 25)
             
-            # Calculate solar using real weather
+            # Calculate solar using real weather and accurate physics
             from agents.realtime_data_agent import RealTimeDataAgent
             realtime_agent = RealTimeDataAgent(latitude=lat, longitude=lon)
-            solar_irradiance = realtime_agent.calculate_solar_irradiance(datetime.now(), clouds, lat, lon)
+            solar_irradiance = realtime_agent.calculate_solar_irradiance(
+                datetime.now(), 
+                clouds, 
+                lat, 
+                lon,
+                system_size=system_size,
+                panel_tilt=panel_tilt,
+                panel_azimuth=panel_azimuth
+            )
             
             # Temperature derating
             temp_factor = 1 - 0.004 * max(0, temp - 25)
             temp_factor = max(0.7, min(1.0, temp_factor))
             
-            # Calculate actual output
-            performance_ratio = 0.78
+            # Calculate actual output dynamically instead of hardcoding efficiency
             solar_gen_kw = (solar_irradiance / 1000) * system_size * performance_ratio * temp_factor
 
         # 2. Run Simulation Step (isolated per location)

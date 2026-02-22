@@ -274,9 +274,12 @@ class RealTimeDataAgent:
             return None
     
     def calculate_solar_irradiance(self, timestamp: datetime, clouds: float, 
-                                   lat: float = None, lon: float = None) -> float:
+                                   lat: float = None, lon: float = None,
+                                   system_size: float = 5.0,
+                                   panel_tilt: float = 30.0,
+                                   panel_azimuth: float = 180.0) -> float:
         """
-        Calculate solar irradiance using NREL Solar Resource API data
+        Calculate configured solar irradiance using centralized physics math
         Falls back to physics-based calculation if NREL unavailable
         
         Args:
@@ -284,68 +287,72 @@ class RealTimeDataAgent:
             clouds: Cloud coverage percentage (0-100)
             lat: Latitude (optional, uses default if not provided)
             lon: Longitude (optional, uses default if not provided)
+            system_size: Size in kWp
+            panel_tilt: Degrees tilt
+            panel_azimuth: Degrees azimuth
             
         Returns:
-            Solar irradiance in W/m²
+            Solar irradiance in W/m² hitting the panel
         """
         use_lat = lat if lat is not None else self.default_lat
         use_lon = lon if lon is not None else self.default_lon
         
-        # Try NASA POWER data first with timestamp for time-of-day calculation
+        from utils.solar_math import (
+            calculate_solar_position, 
+            calculate_angle_of_incidence,
+            calculate_clear_sky_irradiance,
+            calculate_effective_irradiance
+        )
+        
+        # Get sun position
+        elevation, azimuth, _ = calculate_solar_position(timestamp, use_lat)
+        
+        # If sun below horizon, no irradiance
+        if elevation <= 0:
+            return 0.0
+            
+        # Try NASA POWER data first
         nasa_data = self.fetch_nasa_power_solar_data(use_lat, use_lon, timestamp)
         
         if nasa_data and nasa_data.get("ghi", 0) >= 0:
-            # Use NASA POWER data and apply cloud factor
-            base_irradiance = nasa_data["ghi"]
-            cloud_factor = 1 - (clouds / 100) * 0.75  # Clouds reduce by up to 75%
-            irradiance = base_irradiance * cloud_factor
-            logger.info(f"Using NASA POWER irradiance: {irradiance:.2f} W/m² (base: {base_irradiance:.2f}, clouds: {clouds}%)")
-            return max(0, irradiance)
-        
-        # Fallback to physics-based calculation
-        logger.warning(f"NASA POWER data unavailable for ({use_lat}, {use_lon}), using physics-based fallback")
-        hour = timestamp.hour + timestamp.minute / 60
-        
-        # Solar elevation angle (simplified)
-        solar_elevation = max(0, np.sin((hour - 6) * np.pi / 12) * 90)
-        
-        if solar_elevation > 0:
-            # Air mass (atmospheric path length)
-            air_mass = 1 / (np.sin(np.radians(solar_elevation)) + 0.50572 * (solar_elevation + 6.07995)**-1.6364)
-            
-            # Clear sky irradiance
-            clear_sky_irradiance = 1367 * (0.7 ** (air_mass ** 0.678))
-            
-            # Apply cloud cover reduction
-            cloud_factor = 1 - (clouds / 100) * 0.75
-            irradiance = clear_sky_irradiance * cloud_factor
+            base_ghi = nasa_data["ghi"]
         else:
-            irradiance = 0  # Night time
+            # Fallback to pure physics clear sky GHI
+            base_ghi = calculate_clear_sky_irradiance(elevation)
+            
+        # Calculate angle of incidence
+        aoi = calculate_angle_of_incidence(elevation, azimuth, panel_tilt, panel_azimuth)
         
-        return max(0, irradiance)
+        # Calculate effective tilted panel irradiance with clouds
+        irradiance_data = calculate_effective_irradiance(base_ghi, clouds, elevation, aoi)
+        
+        return irradiance_data['total']
 
     def calculate_cloud_loss(self, timestamp: datetime, clouds: float, 
                              lat: float = None, lon: float = None, 
                              system_size_kwp: float = 5.0, 
-                             performance_ratio: float = 0.85) -> Dict:
+                             performance_ratio: float = 0.85,
+                             panel_tilt: float = 30.0,
+                             panel_azimuth: float = 180.0) -> Dict:
         """
-        Calculate energy lost due to cloud cover
+        Calculate energy lost due to cloud cover using accurate tracking
         """
+        from utils.solar_math import calculate_solar_position, calculate_clear_sky_irradiance
         use_lat = lat if lat is not None else self.default_lat
         use_lon = lon if lon is not None else self.default_lon
         
         # 1. Clear Sky Potential (Clouds = 0)
-        hour = timestamp.hour + timestamp.minute / 60
-        solar_elevation = max(0, np.sin((hour - 6) * np.pi / 12) * 90)
+        elevation, _, _ = calculate_solar_position(timestamp, use_lat)
         
-        if solar_elevation <= 0:
+        if elevation <= 0:
             return {"potential_kwh": 0, "actual_kwh": 0, "loss_kwh": 0, "loss_percent": 0}
             
-        air_mass = 1 / (np.sin(np.radians(solar_elevation)) + 0.0001)
-        clear_sky_irradiance = 1367 * (0.7 ** (air_mass ** 0.678))
+        clear_sky_irradiance = calculate_clear_sky_irradiance(elevation)
         
         # 2. Actual Irradiance
-        actual_irradiance = self.calculate_solar_irradiance(timestamp, clouds, use_lat, use_lon)
+        actual_irradiance = self.calculate_solar_irradiance(
+            timestamp, clouds, use_lat, use_lon, system_size_kwp, panel_tilt, panel_azimuth
+        )
         
         # 3. Convert to energy
         potential_kwh = (clear_sky_irradiance / 1000.0) * system_size_kwp * performance_ratio
@@ -361,24 +368,27 @@ class RealTimeDataAgent:
             "loss_percent": float(loss_percent)
         }
 
-    def estimate_energy_output(self, weather_data: Dict, system_size_kwp: float = 5.0, performance_ratio: float = 0.85) -> float:
+    def estimate_energy_output(self, weather_data: Dict, system_size_kwp: float = 5.0, 
+                               performance_ratio: float = 0.85, panel_tilt: float = 30.0, 
+                               panel_azimuth: float = 180.0) -> float:
         """
-        Estimate energy output from weather conditions
+        Estimate energy output from weather conditions using centralized match
         """
         irradiance = self.calculate_solar_irradiance(
             weather_data["timestamp"],
-            weather_data["clouds"]
+            weather_data["clouds"],
+            system_size=system_size_kwp,
+            panel_tilt=panel_tilt,
+            panel_azimuth=panel_azimuth
         )
         
-        temperature = weather_data.get("temperature")
-        if temperature is None or pd.isna(temperature):
-            temp_factor = 1.0
-        else:
-            temp_factor = 1 - 0.004 * (float(temperature) - 25.0)
-            temp_factor = max(0.7, min(1.0, temp_factor))
-
-        energy_kwh = (float(irradiance) / 1000.0) * float(system_size_kwp) * float(performance_ratio) * float(temp_factor)
-        return float(max(0.0, energy_kwh))
+        from utils.solar_math import calculate_energy_output
+        return calculate_energy_output(
+            irradiance=irradiance, 
+            temperature=weather_data.get("temperature", 25.0),
+            system_size_kwp=system_size_kwp,
+            performance_ratio=performance_ratio
+        )
     
     def fetch_historical_data(self, days: int = 30) -> pd.DataFrame:
         """

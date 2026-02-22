@@ -381,38 +381,15 @@ class RealWeatherSolarForecaster:
 
     
     def calculate_solar_position(self, timestamp: datetime, lat: float, lon: float) -> Dict:
-
-        """Calculate sun's position in the sky"""
-        hour = timestamp.hour + timestamp.minute / 60
-        day_of_year = timestamp.timetuple().tm_yday
-        
-        # Solar declination (Earth's tilt)
-        declination = 23.45 * np.sin(np.radians(360 * (284 + day_of_year) / 365))
-        
-        # Hour angle (sun's east-west position)
-        hour_angle = 15 * (hour - 12)
-        
-        # Solar elevation angle (height above horizon)
-        elevation = np.degrees(np.arcsin(
-            np.sin(np.radians(lat)) * np.sin(np.radians(declination)) +
-            np.cos(np.radians(lat)) * np.cos(np.radians(declination)) * 
-            np.cos(np.radians(hour_angle))
-        ))
-        
-        # Solar azimuth angle (compass direction)
-        azimuth = np.degrees(np.arctan2(
-            np.sin(np.radians(hour_angle)),
-            np.cos(np.radians(hour_angle)) * np.sin(np.radians(lat)) -
-            np.tan(np.radians(declination)) * np.cos(np.radians(lat))
-        ))
-        azimuth = (azimuth + 180) % 360  # Convert to 0-360 range
-        
+        """Calculate sun's position in the sky using centralized math"""
+        from utils.solar_math import calculate_solar_position
+        elevation, azimuth, declination = calculate_solar_position(timestamp, lat)
         return {
             'elevation': elevation,
             'azimuth': azimuth,
             'declination': declination
         }
-    
+
     def fetch_nasa_power_solar_data(self, lat: float, lon: float) -> Optional[Dict]:
         """
         Fetch solar irradiance data from NASA POWER API
@@ -490,39 +467,27 @@ class RealWeatherSolarForecaster:
             return None
     
     def calculate_angle_of_incidence(self, sun_elevation: float, sun_azimuth: float) -> float:
-        """
-        Calculate angle between sun rays and panel surface
-        Accounts for panel tilt and azimuth
-        """
-        # Convert to radians
-        sun_elev_rad = np.radians(sun_elevation)
-        sun_azim_rad = np.radians(sun_azimuth)
-        panel_tilt_rad = np.radians(self.panel_tilt)
-        panel_azim_rad = np.radians(self.panel_azimuth)
-        
-        # Angle of incidence formula
-        cos_aoi = (
-            np.sin(sun_elev_rad) * np.cos(panel_tilt_rad) +
-            np.cos(sun_elev_rad) * np.sin(panel_tilt_rad) * 
-            np.cos(sun_azim_rad - panel_azim_rad)
+        """Calculate angle between sun rays and panel surface using centralized math"""
+        from utils.solar_math import calculate_angle_of_incidence
+        return calculate_angle_of_incidence(
+            sun_elevation, sun_azimuth, self.panel_tilt, self.panel_azimuth
         )
-        
-        # Clamp to valid range
-        cos_aoi = np.clip(cos_aoi, -1, 1)
-        aoi = np.degrees(np.arccos(cos_aoi))
-        
-        return aoi
     
     def calculate_solar_irradiance(self, timestamp: datetime, clouds: float, 
                                    lat: float, lon: float, nasa_data: Optional[Dict] = None) -> Dict:
         """
         Calculate solar irradiance with panel orientation
-        Uses NASA POWER data as baseline if available, otherwise physics-based calculation
+        Uses centralized math for consistency
         """
+        from utils.solar_math import (
+            calculate_solar_position, 
+            calculate_angle_of_incidence,
+            calculate_clear_sky_irradiance,
+            calculate_effective_irradiance
+        )
+        
         # Get sun position
-        sun_pos = self.calculate_solar_position(timestamp, lat, lon)
-        elevation = sun_pos['elevation']
-        azimuth = sun_pos['azimuth']
+        elevation, azimuth, _ = calculate_solar_position(timestamp, lat)
         
         # If sun below horizon, no irradiance
         if elevation <= 0:
@@ -535,77 +500,33 @@ class RealWeatherSolarForecaster:
                 'angle_of_incidence': 90.0
             }
         
-        # Determine base irradiance
+        # Determine base clear sky GHI
         if nasa_data and nasa_data.get('peak_ghi_w_m2', 0) > 0:
-            # Use NASA POWER data as baseline - scale by time of day
             hour = timestamp.hour + timestamp.minute / 60
-            # Solar curve: 0 at sunrise/sunset, peak at solar noon
             time_factor = max(0, np.sin((hour - 6) * np.pi / 12))
             base_clear_sky_ghi = nasa_data['peak_ghi_w_m2'] * time_factor
         else:
-            # Fallback to physics-based calculation
-            # Air mass (atmospheric path length)
-            air_mass = 1 / (np.sin(np.radians(elevation)) + 0.50572 * (elevation + 6.07995)**-1.6364)
-            
-            # Extraterrestrial irradiance
-            solar_constant = 1367  # W/m²
-            
-            # Direct normal irradiance (clear sky)
-            direct_normal = solar_constant * (0.7 ** (air_mass ** 0.678))
-            
-            # GHI for clear sky
-            base_clear_sky_ghi = direct_normal * np.sin(np.radians(elevation))
+            base_clear_sky_ghi = calculate_clear_sky_irradiance(elevation)
         
-        # Apply cloud cover
-        cloud_transmittance = 1 - (clouds / 100) * 0.75
-        actual_ghi = base_clear_sky_ghi * cloud_transmittance
+        # Calculate angle of incidence
+        aoi = calculate_angle_of_incidence(elevation, azimuth, self.panel_tilt, self.panel_azimuth)
         
-        # Calculate angle of incidence for tilted panel
-        aoi = self.calculate_angle_of_incidence(elevation, azimuth)
-        
-        # For tilted panels, adjust based on angle of incidence
-        if aoi < 90:  # Panel facing sun
-            # Tilt factor: how much more/less irradiance the tilted panel gets
-            tilt_factor = np.cos(np.radians(aoi)) / np.sin(np.radians(elevation))
-            tilt_factor = max(0.5, min(1.5, tilt_factor))  # Reasonable bounds
-        else:  # Panel facing away
-            tilt_factor = 0.5  # Still gets diffuse light
-        
-        # Total irradiance on tilted panel
-        total_irradiance = actual_ghi * tilt_factor
-        
-        # Estimate direct vs diffuse components
-        direct_fraction = 0.8 * cloud_transmittance  # More direct when clear
-        diffuse_fraction = 1 - direct_fraction
-        
-        direct_component = total_irradiance * direct_fraction
-        diffuse_component = total_irradiance * diffuse_fraction
+        # Calculate effective tilted panel irradiance with clouds
+        irradiance_data = calculate_effective_irradiance(base_clear_sky_ghi, clouds, elevation, aoi)
         
         return {
-            'irradiance': max(0, total_irradiance),
-            'direct': max(0, direct_component),
-            'diffuse': max(0, diffuse_component),
+            'irradiance': irradiance_data['total'],
+            'direct': irradiance_data['direct'],
+            'diffuse': irradiance_data['diffuse'],
             'sun_elevation': elevation,
             'sun_azimuth': azimuth,
             'angle_of_incidence': aoi
         }
     
     def calculate_energy_output(self, irradiance: float, temperature: float) -> float:
-        """Calculate energy output with temperature derating"""
-        # Handle NaN values
-        if pd.isna(temperature) or pd.isna(irradiance):
-            logger.warning(f"NaN value detected: temp={temperature}, irradiance={irradiance}")
-            return 0.0
-        
-        # Temperature coefficient (-0.4% per °C above 25°C)
-        temp_factor = 1 - 0.004 * (temperature - 25)
-        temp_factor = max(0.7, min(1.0, temp_factor))
-        
-        # Energy output (kWh for 1 hour)
-        # Use performance ratio (system losses) with DC system size (kWp). Do not multiply efficiency again.
-        energy = (float(irradiance) / 1000.0) * float(self.system_size) * float(self.performance_ratio) * float(temp_factor)
-        
-        return float(max(0, energy))
+        """Calculate energy output with temperature derating using centralized math"""
+        from utils.solar_math import calculate_energy_output
+        return calculate_energy_output(irradiance, temperature, self.system_size, self.performance_ratio)
     
     def forecast(self, lat: float, lon: float, hours: int = 168) -> Dict:
         """
