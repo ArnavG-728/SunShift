@@ -210,7 +210,7 @@ class OptimizationAgent:
                     'appliance': appliance['name'],
                     'best_start_time': best_time['start_time'],
                     'expected_solar_coverage': best_time['coverage_percent'],
-                    'grid_needed_kwh': best_time['grid_needed'],
+                    'grid_needed': best_time['grid_needed'],
                     'cost_savings': best_time['savings']
                 }
                 
@@ -307,7 +307,7 @@ class OptimizationAgent:
         
         # Calculate average household consumption based on system size
         # Rule of thumb: residential consumption ≈ 0.8 * system_size per hour
-        avg_consumption_per_hour = 0.8 * self.system_size if self.system_size > 0 else 1.2
+        avg_consumption_per_hour = 1.2  # realistic average residential consumption (kW)
         total_consumption = avg_consumption_per_hour * len(df)
         
         surplus = total_production - total_consumption
@@ -334,12 +334,16 @@ class OptimizationAgent:
         """Calculate potential cost savings"""
         total_solar = df[energy_col].sum()
         
-        # Savings from not buying from grid
-        grid_cost_avoided = total_solar * self.electricity_tariff
+        # Split solar into self-consumed vs exported
+        avg_consumption_per_hour = 1.2  # typical residential kW
+        total_consumption = avg_consumption_per_hour * len(df)
+        self_consumed = min(total_solar, total_consumption)
+        exported = max(0, total_solar - total_consumption)
         
-        # Potential revenue from export (assume 30% can be exported)
-        exportable = total_solar * 0.3
-        export_revenue = exportable * self.feed_in_tariff
+        # Savings from self-consumption (avoided grid purchase)
+        grid_cost_avoided = self_consumed * self.electricity_tariff
+        # Revenue from exporting surplus
+        export_revenue = exported * self.feed_in_tariff
         
         total_savings = grid_cost_avoided + export_revenue
         
@@ -360,15 +364,16 @@ class OptimizationAgent:
         co2_avoided_kg = total_solar * self.grid_co2_factor
         co2_avoided_tons = co2_avoided_kg / 1000
         
-        # Equivalents for context
-        trees_equivalent = co2_avoided_kg / 21  # 1 tree absorbs ~21kg CO2/year
-        car_miles_equivalent = co2_avoided_kg / 0.404  # 1 mile = ~0.404kg CO2
+        # Equivalents for context (consistent with GreenMetrics & CarbonWallet)
+        trees_daily_absorption = 21 / 365  # ~0.0575 kg CO2 per tree per day
+        trees_equivalent = co2_avoided_kg / trees_daily_absorption
+        car_km_equivalent = co2_avoided_kg / 0.12  # 1 km = ~0.12 kg CO2
         
         return {
             'co2_avoided_kg': round(co2_avoided_kg, 2),
             'co2_avoided_tons': round(co2_avoided_tons, 4),
             'trees_equivalent': round(trees_equivalent, 2),
-            'car_miles_avoided': round(car_miles_equivalent, 1),
+            'car_km_avoided': round(car_km_equivalent, 1),
             'monthly_projection_kg': round(co2_avoided_kg * 30 / max(1, len(df) / 24), 2)
         }
     

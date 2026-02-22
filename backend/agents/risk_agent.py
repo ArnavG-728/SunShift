@@ -100,21 +100,80 @@ class SolarRiskAgent:
                     "environmental": environmental_risk
                 },
                 "recommendations": recommendations,
+                "defensive_charging": None,
                 "timestamp": datetime.now().isoformat()
             }
             
         except Exception as e:
             logger.error(f"Error calculating risk score: {e}")
             return {"score": 0, "level": "Unknown", "error": str(e)}
-            
+
+    def generate_defensive_triggers(
+        self, forecast_hours: List[Dict], battery_soc: float = 50.0
+    ) -> Dict:
+        """
+        Scan the next 12h of weather forecast for storm risk.
+        If risk > 50, generate a DEFENSIVE_CHARGE trigger to reserve
+        the battery for outage resilience.
+
+        Args:
+            forecast_hours: list of hourly weather dicts (next 12-24h).
+            battery_soc: current battery state-of-charge (%).
+
+        Returns:
+            defensive_charging dict with trigger, target_soc, reason, hours_until_event.
+        """
+        if not forecast_hours:
+            return {"trigger": False, "reason": "No forecast data available"}
+
+        worst_risk = 0.0
+        worst_hour = 0
+        storm_detected = False
+        storm_details = ""
+
+        for i, hour_data in enumerate(forecast_hours[:12]):
+            risk_result = self.calculate_risk_score(hour_data)
+            score = risk_result.get("score", 0)
+            if score > worst_risk:
+                worst_risk = score
+                worst_hour = i
+                if risk_result.get("level") in ("High", "Extreme"):
+                    storm_detected = True
+                    weather_desc = hour_data.get("weather", "severe weather")
+                    wind = hour_data.get("wind_speed", 0)
+                    storm_details = f"{weather_desc}, wind {wind:.0f} m/s"
+
+        if storm_detected and worst_risk > 50:
+            target_soc = 100.0
+            return {
+                "trigger": True,
+                "action": "DEFENSIVE_CHARGE",
+                "target_soc": target_soc,
+                "current_soc": battery_soc,
+                "charge_needed_pct": round(max(0, target_soc - battery_soc), 1),
+                "hours_until_event": worst_hour,
+                "risk_score": worst_risk,
+                "reason": f"⚡ Severe weather detected in {worst_hour}h: {storm_details}. "
+                          f"Reserving battery to 100% for outage resilience.",
+            }
+        else:
+            return {
+                "trigger": False,
+                "current_soc": battery_soc,
+                "max_risk_next_12h": worst_risk,
+                "reason": "No severe weather threats in the next 12 hours.",
+            }
+
     def _generate_recommendations(self, level: str, score: float, weather_data: Dict) -> List[str]:
         recs = []
         
         if level == "Extreme":
             recs.append("⚠️ IMMEDIATE ACTION: Secure all loose components around panels.")
             recs.append("🛡️ SYSTEM PROTECTION: Consider manual shutdown if severe lightning persists.")
+            recs.append("🔋 DEFENSIVE: Battery should be charged to 100% for outage resilience.")
         elif level == "High":
             recs.append("🔔 MONITOR: High environmental stress detected.")
+            recs.append("🔋 DEFENSIVE: Consider pre-charging battery to maximum.")
             if weather_data.get("wind_speed", 0) > 15:
                 recs.append("💨 WIND ALERT: Check mounting stability.")
         elif level == "Moderate":
