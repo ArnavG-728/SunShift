@@ -48,12 +48,27 @@ def get_db():
         db.close()
 
 def init_db():
-    """Initialize database tables. Safe to call multiple times."""
+    """Initialize database tables and handle migrations. Safe to call multiple times."""
     from . import models  # Import models to register them
+    from sqlalchemy import inspect, text
+    
     try:
-        # checkfirst=True prevents "table already exists" errors
+        # 1. Create tables if they don't exist
         Base.metadata.create_all(bind=engine, checkfirst=True)
+        
+        # 2. Check for missing columns (Self-healing migration)
+        # We uniquely handle simulation_state.location_key which was added in v2
+        inspector = inspect(engine)
+        columns = [c['name'] for c in inspector.get_columns("simulation_state")]
+        
+        if "location_key" not in columns:
+            logger.info("Migration: Adding missing 'location_key' column to simulation_state table...")
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE simulation_state ADD COLUMN location_key VARCHAR"))
+                conn.execute(text("CREATE INDEX ix_simulation_state_location_key ON simulation_state (location_key)"))
+            logger.info("Migration: Successfully added location_key column")
+            
         logger.info("Database tables initialized successfully")
     except Exception as e:
-        # Log but don't crash - tables likely already exist from another worker
-        logger.warning(f"Database init warning (likely harmless): {e}")
+        # Log but don't crash - tables likely already exist or have been modified
+        logger.warning(f"Database init warning: {e}")
