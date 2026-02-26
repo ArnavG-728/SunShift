@@ -383,7 +383,7 @@ class RealWeatherSolarForecaster:
     def calculate_solar_position(self, timestamp: datetime, lat: float, lon: float) -> Dict:
         """Calculate sun's position in the sky using centralized math"""
         from utils.solar_math import calculate_solar_position
-        elevation, azimuth, declination = calculate_solar_position(timestamp, lat)
+        elevation, azimuth, declination = calculate_solar_position(timestamp, lat, lon)
         return {
             'elevation': elevation,
             'azimuth': azimuth,
@@ -487,7 +487,7 @@ class RealWeatherSolarForecaster:
         )
         
         # Get sun position
-        elevation, azimuth, _ = calculate_solar_position(timestamp, lat)
+        elevation, azimuth, _ = calculate_solar_position(timestamp, lat, lon)
         
         # If sun below horizon, no irradiance
         if elevation <= 0:
@@ -501,12 +501,8 @@ class RealWeatherSolarForecaster:
             }
         
         # Determine base clear sky GHI
-        if nasa_data and nasa_data.get('peak_ghi_w_m2', 0) > 0:
-            hour = timestamp.hour + timestamp.minute / 60
-            time_factor = max(0, np.sin((hour - 6) * np.pi / 12))
-            base_clear_sky_ghi = nasa_data['peak_ghi_w_m2'] * time_factor
-        else:
-            base_clear_sky_ghi = calculate_clear_sky_irradiance(elevation)
+        # Always use physical clear sky formulation since NASA data contains average cloud attenuation
+        base_clear_sky_ghi = calculate_clear_sky_irradiance(elevation)
         
         # Calculate angle of incidence
         aoi = calculate_angle_of_incidence(elevation, azimuth, self.panel_tilt, self.panel_azimuth)

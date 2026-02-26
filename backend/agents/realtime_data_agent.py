@@ -305,7 +305,7 @@ class RealTimeDataAgent:
         )
         
         # Get sun position
-        elevation, azimuth, _ = calculate_solar_position(timestamp, use_lat)
+        elevation, azimuth, _ = calculate_solar_position(timestamp, use_lat, use_lon)
         
         # If sun below horizon, no irradiance
         if elevation <= 0:
@@ -314,11 +314,8 @@ class RealTimeDataAgent:
         # Try NASA POWER data first
         nasa_data = self.fetch_nasa_power_solar_data(use_lat, use_lon, timestamp)
         
-        if nasa_data and nasa_data.get("ghi", 0) >= 0:
-            base_ghi = nasa_data["ghi"]
-        else:
-            # Fallback to pure physics clear sky GHI
-            base_ghi = calculate_clear_sky_irradiance(elevation)
+        # Always use physical clear sky formulation since NASA data contains average cloud attenuation
+        base_ghi = calculate_clear_sky_irradiance(elevation)
             
         # Calculate angle of incidence
         aoi = calculate_angle_of_incidence(elevation, azimuth, panel_tilt, panel_azimuth)
@@ -342,7 +339,7 @@ class RealTimeDataAgent:
         use_lon = lon if lon is not None else self.default_lon
         
         # 1. Clear Sky Potential (Clouds = 0)
-        elevation, _, _ = calculate_solar_position(timestamp, use_lat)
+        elevation, _, _ = calculate_solar_position(timestamp, use_lat, use_lon)
         
         if elevation <= 0:
             return {"potential_kwh": 0, "actual_kwh": 0, "loss_kwh": 0, "loss_percent": 0}

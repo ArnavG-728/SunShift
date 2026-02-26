@@ -230,26 +230,38 @@ class OptimizationAgent:
             return None
         
         best_window = None
-        best_coverage = 0
+        best_coverage = -1
+        max_excess_solar = -float('inf')
+        
+        # Power drawn per hour (assuming constant draw)
+        hourly_consumption = consumption_kwh / duration_hours
         
         # Slide window through forecast
         for i in range(len(df) - duration_hours + 1):
             window = df.iloc[i:i+duration_hours]
+            
+            # Calculate coverage on an hourly basis
+            hourly_coverage = [min(row[energy_col], hourly_consumption) for _, row in window.iterrows()]
+            total_coverage = sum(hourly_coverage)
+            coverage_percent = (total_coverage / consumption_kwh) * 100
+            
+            # Calculate total excess solar in this window (to center the load during peak sun)
             total_solar = window[energy_col].sum()
+            excess_solar = total_solar - consumption_kwh
             
-            # Calculate how much of the consumption can be covered by solar
-            coverage = min(total_solar, consumption_kwh)
-            coverage_percent = (coverage / consumption_kwh) * 100
-            
-            if coverage_percent > best_coverage:
+            # We prefer the window that gives the highest coverage.
+            # If multiple windows give the same (e.g., 100%) coverage, we pick the one with the MOST excess solar.
+            # This ensures we schedule exactly during the peak of the day rather than at the edges.
+            if coverage_percent > best_coverage or (abs(coverage_percent - best_coverage) < 0.1 and excess_solar > max_excess_solar):
                 best_coverage = coverage_percent
-                grid_needed = max(0, consumption_kwh - total_solar)
+                max_excess_solar = excess_solar
+                grid_needed = max(0, consumption_kwh - total_coverage)
                 
                 best_window = {
                     'start_time': pd.to_datetime(window.iloc[0]['timestamp']).strftime('%I:%M %p'),
                     'coverage_percent': round(coverage_percent, 1),
                     'grid_needed': round(grid_needed, 2),
-                    'savings': round((coverage / consumption_kwh) * consumption_kwh * self.electricity_tariff, 2)
+                    'savings': round(total_coverage * self.electricity_tariff, 2)
                 }
         
         return best_window

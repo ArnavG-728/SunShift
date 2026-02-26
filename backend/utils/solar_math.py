@@ -1,21 +1,34 @@
 import numpy as np
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Tuple
 
-def calculate_solar_position(timestamp: datetime, lat: float) -> Tuple[float, float, float]:
+def calculate_solar_position(timestamp: datetime, lat: float, lon: float = 0.0) -> Tuple[float, float, float]:
     """
-    Calculate sun's position accurately.
+    Calculate sun's position accurately based on time and location.
+    Handles timezone-naive local timestamps representing UTC correctly.
     Returns: (elevation, azimuth, declination) in degrees.
     """
-    hour = timestamp.hour + timestamp.minute / 60
-    day_of_year = timestamp.timetuple().tm_yday
+    # 1. Get true UTC time from the timestamp
+    unix_time = timestamp.timestamp()
+    utc_dt = datetime.fromtimestamp(unix_time, tz=timezone.utc)
     
-    # Accurate Solar Declination (Earth's tilt over the year)
-    declination = 23.45 * np.sin(np.radians(360 * (284 + day_of_year) / 365))
+    # 2. Fractional UTC hour and day of year
+    utc_hour = utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
+    day_of_year = utc_dt.timetuple().tm_yday
     
-    # Hour angle (sun's east-west position, 0 at solar noon)
-    hour_angle = 15 * (hour - 12)
+    # 3. Accurate Solar Declination
+    declination = 23.45 * np.sin(np.radians(360 * (284 + day_of_year) / 365.0))
+    
+    # 4. Equation of Time (EoT) in minutes
+    B = np.radians((day_of_year - 1) * 360.0 / 365.0)
+    E = 229.18 * (0.000075 + 0.001868 * np.cos(B) - 0.032077 * np.sin(B) - 0.014615 * np.cos(2*B) - 0.040849 * np.sin(2*B))
+    
+    # 5. True Solar Time / Local Solar Time (LST) in hours
+    lst_hours = (utc_hour + lon / 15.0 + E / 60.0) % 24
+    
+    # 6. Hour angle (15 degrees per hour, 0 at solar noon)
+    hour_angle = 15 * (lst_hours - 12)
     
     # Solar Elevation Angle
     elevation = np.degrees(np.arcsin(

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Shield, AlertTriangle, CheckCircle, Activity, Wrench, ChevronDown, ChevronUp } from 'lucide-react'
 import axios from 'axios'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
+import BoxGuide from './BoxGuide'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -105,13 +106,25 @@ export default function SystemHealth() {
                         </h3>
                         <p className="text-xs text-blue-100">Degradation Detective — Panel diagnostics</p>
                     </div>
-                    <button
-                        onClick={() => setIsOpen(!isOpen)}
-                        className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-md text-sm transition-colors"
-                    >
-                        <span>{isOpen ? 'Collapse' : 'Expand'}</span>
-                        {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                        <BoxGuide title="System Health">
+                            <p>This module acts as a "Degradation Detective" to monitor the long-term health and efficiency of your solar panels.</p>
+                            <ul className="space-y-3 mt-3">
+                                <li><strong>Health Score:</strong> An overall rating out of 100 indicating the condition of your system. Values above 90 are excellent.</li>
+                                <li><strong>Performance Ratio (PR):</strong> Compares actual energy output to theoretical maximum output under optimal conditions. Healthy PR is typically between 75% and 85%.</li>
+                                <li><strong>Degradation Rate:</strong> The percentage of efficiency lost over time. All solar panels degrade slightly each year (typically ~0.5%), but high numbers indicate a problem.</li>
+                                <li><strong>Alerts & Anomalies:</strong> Automated warnings for critical issues like sudden drops in generation or hardware faults, prompting timely maintenance.</li>
+                                <li><strong>Maintenance Recommendations:</strong> Actionable steps to restore or improve system performance based on the health data (e.g., cleaning panels, checking inverter connections).</li>
+                            </ul>
+                        </BoxGuide>
+                        <button
+                            onClick={() => setIsOpen(!isOpen)}
+                            className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-md text-sm transition-colors"
+                        >
+                            <span>{isOpen ? 'Collapse' : 'Expand'}</span>
+                            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -167,10 +180,10 @@ export default function SystemHealth() {
                                         <div
                                             key={i}
                                             className={`flex items-start gap-3 p-3 rounded-lg border text-sm ${alert.type === 'critical'
-                                                    ? 'bg-red-50 border-red-200'
-                                                    : alert.type === 'warning'
-                                                        ? 'bg-yellow-50 border-yellow-200'
-                                                        : 'bg-green-50 border-green-200'
+                                                ? 'bg-red-50 border-red-200'
+                                                : alert.type === 'warning'
+                                                    ? 'bg-yellow-50 border-yellow-200'
+                                                    : 'bg-green-50 border-green-200'
                                                 }`}
                                         >
                                             {getAlertIcon(alert.type)}

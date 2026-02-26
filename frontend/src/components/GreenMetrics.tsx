@@ -5,6 +5,7 @@ import { Leaf, Zap, TrendingDown, TreePine, Coins, ChevronDown, ChevronUp } from
 import axios from 'axios'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
 import { useCurrency } from '@/lib/useCurrency'
+import BoxGuide from './BoxGuide'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -137,13 +138,24 @@ export default function GreenMetrics() {
             </h3>
             <p className="text-xs text-green-100">Real-time carbon savings · Lifetime credit portfolio</p>
           </div>
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-md text-sm transition-colors"
-          >
-            <span>{isOpen ? 'Collapse' : 'Expand'}</span>
-            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
+          <div className="flex items-center space-x-2">
+            <BoxGuide title="Environmental Impact & Carbon Wallet">
+              <p>This module visualizes the ecological benefits of your solar generation and tracks your earned carbon credits.</p>
+              <ul className="space-y-3 mt-3">
+                <li><strong>Today's Impact:</strong> Shows energy generated today, the financial savings, and the exact amount of CO₂ emissions avoided (calculated using your local Grid CO₂ Factor).</li>
+                <li><strong>Wallet Balance:</strong> The total monetary value of your carbon credits earned over the lifetime of the system, based on current real-world carbon market prices.</li>
+                <li><strong>Lifetime Equivalents:</strong> Translates your avoided CO₂ into tangible metrics such as "Tree-years planted" (trees needed to absorb that much CO₂ in a year) and "Car kilometers avoided".</li>
+                <li><strong>Monthly Ledger:</strong> A breakdown of historical energy generation, CO₂ avoided, and corresponding carbon credit value on a monthly basis.</li>
+              </ul>
+            </BoxGuide>
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-md text-sm transition-colors"
+            >
+              <span>{isOpen ? 'Collapse' : 'Expand'}</span>
+              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
       </div>
 

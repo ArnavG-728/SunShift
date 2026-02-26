@@ -5,6 +5,7 @@ import { TrendingUp, TrendingDown, Zap, Battery, Clock, DollarSign, ChevronDown,
 import axios from 'axios'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
 import { useCurrency } from '@/lib/useCurrency'
+import BoxGuide from './BoxGuide'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -99,13 +100,24 @@ export default function ValueGapDashboard() {
                         </h3>
                         <p className="text-xs text-amber-100">Buy vs Sell rate analysis & Virtual Battery</p>
                     </div>
-                    <button
-                        onClick={() => setIsOpen(!isOpen)}
-                        className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-md text-sm transition-colors"
-                    >
-                        <span>{isOpen ? 'Collapse' : 'Expand'}</span>
-                        {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                        <BoxGuide title="Solar Value Gap">
+                            <p>This dashboard analyzes the financial difference between buying electricity from the grid versus selling your solar excess.</p>
+                            <ul className="space-y-3 mt-3">
+                                <li><strong>The Value Gap:</strong> The difference between your Electricity Tariff (buy rate) and Feed-in Tariff (sell rate). A large gap means it's much more profitable to consume your own solar power rather than exporting it.</li>
+                                <li><strong>Virtual Battery Savings:</strong> Shows how much money you could save by artificially "storing" energy (by shifting your power usage to sunny hours) instead of buying a physical battery. Let's you decide if a real battery is worth the investment.</li>
+                                <li><strong>Self-Consumption Boost:</strong> Compares your typical home energy usage pattern (Without SunShift) to an optimized pattern where high-drain appliances are run during peak solar hours (With SunShift).</li>
+                                <li><strong>Best Times to Shift Loads:</strong> Suggests specific times of day when your system produces the most excess power, ideal for running energy-intensive appliances like washing machines or EV chargers.</li>
+                            </ul>
+                        </BoxGuide>
+                        <button
+                            onClick={() => setIsOpen(!isOpen)}
+                            className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-md text-sm transition-colors"
+                        >
+                            <span>{isOpen ? 'Collapse' : 'Expand'}</span>
+                            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
+                    </div>
                 </div>
             </div>
 

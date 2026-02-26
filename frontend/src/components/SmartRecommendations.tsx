@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
 import { useCurrency } from '@/lib/useCurrency'
+import BoxGuide from './BoxGuide'
 
 import AlertBanner from './SmartRecommendations/AlertBanner'
 import ApplianceSchedule from './SmartRecommendations/ApplianceSchedule'
@@ -175,13 +176,23 @@ export default function SmartRecommendations(props: SmartRecommendationsProps = 
           </div>
           <p className="text-xs text-gray-500 mt-1">AI-driven scheduling based on your local weather</p>
         </div>
-        <button
-          onClick={fetchRecommendations}
-          disabled={loading}
-          className="text-xs flex items-center bg-gray-50 border hover:bg-gray-100 hover:text-gray-900 px-3 py-1.5 rounded-md transition-colors text-gray-600"
-        >
-          {loading ? 'Analyzing Forecast...' : 'Refresh Insights'}
-        </button>
+        <div className="flex items-center space-x-2">
+          <BoxGuide title="Smart Optimization">
+            <p>This module uses AI to provide actionable advice on how to shift your home energy usage to align with solar production.</p>
+            <ul className="space-y-3 mt-3">
+              <li><strong>Appliances:</strong> Configure your household appliances (e.g., Dishwasher, EV Charger) and get a recommended schedule to run them when solar generation is peaking, maximizing self-consumption.</li>
+              <li><strong>Battery & Grid:</strong> View optimized charge/discharge cycles for your battery and strategic advice on when to import from or export to the grid based on current tariffs.</li>
+              <li><strong>Savings & Automation:</strong> See a summary of potential financial savings and technical triggers (like smart plugs/relays) to automate these energy shifts.</li>
+            </ul>
+          </BoxGuide>
+          <button
+            onClick={fetchRecommendations}
+            disabled={loading}
+            className="text-xs flex items-center bg-gray-50 border hover:bg-gray-100 hover:text-gray-900 px-3 py-1.5 rounded-md transition-colors text-gray-600"
+          >
+            {loading ? 'Analyzing Forecast...' : 'Refresh Insights'}
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto bg-gray-50/50">

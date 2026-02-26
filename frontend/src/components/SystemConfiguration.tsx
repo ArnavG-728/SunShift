@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Settings, Save, RotateCcw, Download, Upload, Info, Zap, Battery, MapPin, DollarSign, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import LocationSelector from './LocationSelector'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
+import BoxGuide from './BoxGuide'
 import { getCurrencySymbol } from '@/lib/useCurrency'
 import {
   exportPreferences,
@@ -148,6 +149,24 @@ export default function SystemConfiguration() {
           </div>
 
           <div className="flex items-center space-x-2">
+            <BoxGuide title="System Configuration">
+              <p>This section allows you to customize the core parameters of your solar setup. It controls all simulations and financial estimates across the dashboard.</p>
+              <ul className="space-y-2 mt-2">
+                <li><strong>Configuration Display:</strong> The top header shows active settings and their live sync status.</li>
+                <li><strong>Expand/Collapse:</strong> Open the panel to edit your settings.</li>
+                <li><strong>Save/Discard Changes:</strong> Edits are held locally. Click "Save Configuration" to apply them globally.</li>
+                <li><strong>Tabs (Solar System, Location, Financial, Battery):</strong> Navigate through each category to refine your system.
+                  <ul className="list-disc pl-5 mt-1 space-y-1 text-gray-600">
+                    <li><em>Solar System:</em> Set system size (kWp), efficiency, tilt, and azimuth. Use presets or the "Suggest Optimal Orientation" feature for quick setup.</li>
+                    <li><em>Location:</em> Defines coordinates for weather matching and solar positions.</li>
+                    <li><em>Financial:</em> Configure utility tariffs and currency for accurate ROI and savings estimations.</li>
+                    <li><em>Battery:</em> If you have energy storage, input its capacity and efficiency here.</li>
+                  </ul>
+                </li>
+                <li><strong>Import/Export:</strong> Save your final configuration to a JSON file, or load a previously saved one.</li>
+              </ul>
+            </BoxGuide>
+
             <button
               onClick={() => resetConfig()}
               className="p-1.5 text-white hover:bg-white/20 rounded-md transition-colors"
@@ -187,8 +206,8 @@ export default function SystemConfiguration() {
                 onClick={handleSave}
                 disabled={!hasUnsavedChanges || errors.length > 0}
                 className={`flex items-center space-x-2 px-6 py-2 rounded-md text-sm font-medium transition-colors ${hasUnsavedChanges && errors.length === 0
-                    ? 'bg-gradient-to-r from-teal-500 to-indigo-500 text-white shadow-md hover:shadow-lg transform hover:-translate-y-0.5'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  ? 'bg-gradient-to-r from-teal-500 to-indigo-500 text-white shadow-md hover:shadow-lg transform hover:-translate-y-0.5'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
               >
                 <Save className="h-4 w-4" />
