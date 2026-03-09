@@ -53,7 +53,8 @@ class SunShiftWorkflow:
         workflow.add_edge("collect_data", "process_features")
         workflow.add_edge("process_features", "generate_forecast")
         workflow.add_edge("generate_forecast", "generate_insights")
-        workflow.add_edge("generate_insights", END)
+        workflow.add_edge("generate_insights", "handle_chat")
+        workflow.add_edge("handle_chat", END)
         
         return workflow.compile()
     
