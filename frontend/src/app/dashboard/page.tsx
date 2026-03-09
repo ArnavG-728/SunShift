@@ -10,6 +10,8 @@ import SolarMetrics from '@/components/SolarMetrics'
 import SystemConfiguration from '@/components/SystemConfiguration'
 import SmartRecommendations from '@/components/SmartRecommendations'
 import UserGuide from '@/components/UserGuide'
+import ValueGapDashboard from '@/components/ValueGapDashboard'
+import SystemHealth from '@/components/SystemHealth'
 import { Sun, Moon } from 'lucide-react'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
 
@@ -30,7 +32,9 @@ export default function Dashboard() {
                         lat: config.latitude,
                         lon: config.longitude,
                         system_size: config.systemSize,
-                        performance_ratio: config.performanceRatio
+                        performance_ratio: config.performanceRatio,
+                        panel_tilt: config.panelTilt,
+                        panel_azimuth: config.panelAzimuth
                     }
                 })
                 if (response.data.status === 'success') {
@@ -47,7 +51,7 @@ export default function Dashboard() {
             const interval = setInterval(fetchDayNightStatus, 300000)
             return () => clearInterval(interval)
         }
-    }, [config.latitude, config.longitude, config.systemSize, config.performanceRatio])
+    }, [config.latitude, config.longitude, config.systemSize, config.performanceRatio, config.panelTilt, config.panelAzimuth])
 
     useEffect(() => {
         setMounted(true)
@@ -71,8 +75,8 @@ export default function Dashboard() {
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
                         <div className="flex items-center space-x-2 sm:space-x-3">
                             <div className={`p-1.5 sm:p-2 rounded-lg shadow-md transition-colors duration-500 ${isNight
-                                    ? 'bg-gradient-to-br from-indigo-500 to-purple-600'
-                                    : 'bg-gradient-to-br from-orange-500 to-yellow-500'
+                                ? 'bg-gradient-to-br from-indigo-500 to-purple-600'
+                                : 'bg-gradient-to-br from-orange-500 to-yellow-500'
                                 }`}>
                                 {isNight ? (
                                     <Moon className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -82,8 +86,8 @@ export default function Dashboard() {
                             </div>
                             <div>
                                 <h1 className={`text-xl sm:text-2xl font-bold bg-clip-text text-transparent transition-colors duration-500 ${isNight
-                                        ? 'bg-gradient-to-r from-indigo-400 to-purple-400'
-                                        : 'bg-gradient-to-r from-orange-600 to-yellow-500'
+                                    ? 'bg-gradient-to-r from-indigo-400 to-purple-400'
+                                    : 'bg-gradient-to-r from-orange-600 to-yellow-500'
                                     }`}>SunShift</h1>
                                 <p className={`text-xs sm:text-sm hidden sm:block transition-colors duration-500 ${isNight ? 'text-slate-400' : 'text-gray-500'
                                     }`}>
@@ -161,6 +165,18 @@ export default function Dashboard() {
                         </div>
                         <div className="w-full">
                             <GreenMetrics />
+                        </div>
+                    </div>
+                )}
+
+                {/* Pitch Feature Cards: Value Gap & System Health */}
+                {mounted && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
+                        <div className="w-full">
+                            <ValueGapDashboard />
+                        </div>
+                        <div className="w-full">
+                            <SystemHealth />
                         </div>
                     </div>
                 )}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import axios from 'axios'
 import { Cloud, Wind, Droplets, Sun, Zap, ThermometerSun, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
+import BoxGuide from './BoxGuide'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -23,7 +24,9 @@ export default function RealTimeWeather() {
           lat: config.latitude,
           lon: config.longitude,
           system_size: config.systemSize,
-          performance_ratio: config.performanceRatio
+          performance_ratio: config.performanceRatio,
+          panel_tilt: config.panelTilt,
+          panel_azimuth: config.panelAzimuth
         }
       })
       if (response.data.status === 'success') {
@@ -44,7 +47,7 @@ export default function RealTimeWeather() {
     // Refresh every 2 minutes
     const interval = setInterval(fetchWeather, 120000)
     return () => clearInterval(interval)
-  }, [config.latitude, config.longitude, config.systemSize, config.performanceRatio])
+  }, [config.latitude, config.longitude, config.systemSize, config.performanceRatio, config.panelTilt, config.panelAzimuth])
 
   const manualRefresh = () => {
     if (!refreshing) {
@@ -107,6 +110,17 @@ export default function RealTimeWeather() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <BoxGuide title="Live Weather Data">
+              <p>This box displays the current meteorological conditions and their direct impact on your solar system's real-time performance.</p>
+              <ul className="space-y-3 mt-3">
+                <li><strong>Temperature:</strong> Outside air temperature. Values above 25°C marginally decrease solar panel efficiency.</li>
+                <li><strong>Humidity & Wind Speed:</strong> Environmental factors affecting panel temperatures and weather patterns.</li>
+                <li><strong>Cloud Cover (%):</strong> The percentage of sky covered by clouds. High cloud cover directly reduces the sunlight reaching the panels.</li>
+                <li><strong>Solar Irradiance (W/m²):</strong> The actual sun power hitting the earth's surface at your location. Optimal clear-sky noon values approach 1,000 W/m².</li>
+                <li><strong>Current Output (kW):</strong> Your system's live power generation, calculated from current irradiance, system size, and panel efficiency.</li>
+                <li><strong>Sunrise/Sunset & Daylight Hours:</strong> Indicates the active solar production window. The progress bar visualizes how much daylight has passed.</li>
+              </ul>
+            </BoxGuide>
             <button
               onClick={manualRefresh}
               disabled={refreshing}

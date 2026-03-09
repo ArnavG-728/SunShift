@@ -5,6 +5,7 @@ import { Sun, Zap, TrendingUp, Cloud, Activity, ChevronDown, ChevronUp, DollarSi
 import axios from 'axios'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
 import { useCurrency } from '@/lib/useCurrency'
+import BoxGuide from './BoxGuide'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -150,13 +151,48 @@ export default function SolarMetrics() {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-md text-sm transition-colors"
-          >
-            <span>{isOpen ? 'Collapse' : 'Expand'}</span>
-            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
+          <div className="flex items-center space-x-2">
+            <BoxGuide title="Peak Sun Hours & Solar Energy">
+              <p>This box visualizes the raw energy potential and predicted output of your solar installation for the current day.</p>
+              <ul className="space-y-3 mt-3">
+                <li>
+                  <strong>PSH Today (Peak Sun Hours):</strong>
+                  The equivalent number of hours the sun shines at an intensity of 1,000 W/m². For example, 4 PSH means you receive energy equivalent to 4 hours of maximum direct sunlight.
+                </li>
+                <li>
+                  <strong>kWh @ 1 kWp:</strong>
+                  The specific yield. It tells you how many kWh are generated per 1 kWp of installed capacity. It is a great metric to compare system efficiency regardless of total size.
+                </li>
+                <li>
+                  <strong>Solar Day Class:</strong>
+                  A quick rating (Excellent, Good, Typical, Fair, Poor) indicating how favorable today's weather and sunlight conditions are for solar generation.
+                </li>
+                <li>
+                  <strong>Confidence:</strong>
+                  Based on cloud cover forecasts. A higher percentage means clear skies and more reliable energy production estimates.
+                </li>
+                <li>
+                  <strong>Daily Output:</strong>
+                  The total electrical energy (in kWh) your system is expected to generate today, factoring in system size, efficiency, calculation losses, and real-time weather.
+                </li>
+                <li>
+                  <strong>Savings:</strong>
+                  The financial value of today's generated energy, calculated using your configured Electricity Tariff.
+                </li>
+                <li>
+                  <strong>CO₂ Avoided:</strong>
+                  The environmental impact showing how many kilograms of greenhouse gas emissions were prevented by using clean solar energy instead of grid power.
+                </li>
+              </ul>
+            </BoxGuide>
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-md text-sm transition-colors"
+            >
+              <span>{isOpen ? 'Collapse' : 'Expand'}</span>
+              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
       </div>
 

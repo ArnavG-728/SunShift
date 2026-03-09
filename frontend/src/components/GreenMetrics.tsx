@@ -1,96 +1,131 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Leaf, Zap, TrendingDown, TreePine, ChevronDown, ChevronUp } from 'lucide-react'
+import { Leaf, Zap, TrendingDown, TreePine, Coins, ChevronDown, ChevronUp } from 'lucide-react'
 import axios from 'axios'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
 import { useCurrency } from '@/lib/useCurrency'
+import BoxGuide from './BoxGuide'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+interface WalletLifetime {
+  total_energy_kwh: number
+  total_co2_avoided_kg: number
+  total_co2_avoided_tons: number
+  total_credit_value_usd: number
+  entries: number
+}
+
+interface WalletData {
+  lifetime: WalletLifetime
+  equivalents: { trees_year_equivalent: number; car_km_avoided: number }
+  credit_rate: { price_per_ton_usd: number; source: string }
+  monthly_breakdown: Array<{ month: string; co2_kg: number; credit_usd: number; energy_kwh: number }>
+}
 
 export default function GreenMetrics() {
   const { config } = useSystemConfig()
   const { convert, formatCurrency } = useCurrency()
   const [isOpen, setIsOpen] = useState(true)
-  const [metrics, setMetrics] = useState({
+  const [loading, setLoading] = useState(true)
+
+  // Today's real-time metrics
+  const [today, setToday] = useState({
     energyGenerated: 0,
     co2Avoided: 0,
     treesEquivalent: 0,
     kmDriven: 0,
-    gridCO2Factor: 0.70,
-    savingsToday: 0  // Always stored in USD
+    savingsToday: 0,
   })
-  const [loading, setLoading] = useState(true)
+
+  // Lifetime wallet data from Carbon Wallet backend
+  const [wallet, setWallet] = useState<WalletData | null>(null)
 
   useEffect(() => {
-    fetchGreenMetrics()
-    const interval = setInterval(fetchGreenMetrics, 120000) // Update every 2 minutes
+    fetchAll()
+    const interval = setInterval(fetchAll, 120000)
     return () => clearInterval(interval)
-  }, [config.latitude, config.longitude, config.systemSize, config.gridCO2Factor, config.electricityTariff])
+  }, [config.latitude, config.longitude, config.systemSize, config.gridCO2Factor, config.electricityTariff, config.performanceRatio, config.panelTilt, config.panelAzimuth])
 
-  const fetchGreenMetrics = async () => {
+  const fetchAll = async () => {
     try {
-      // Fetch today's forecast to calculate real environmental impact
+      setLoading(true)
+      await Promise.all([fetchTodayMetrics(), fetchWallet()])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchTodayMetrics = async () => {
+    try {
       const forecastRes = await axios.get(`${API_BASE_URL}/forecast/24h`).catch(() => null)
 
       let totalEnergyToday = 0
       if (forecastRes?.data?.data && Array.isArray(forecastRes.data.data)) {
-        // Sum up predicted energy for next 24 hours
         totalEnergyToday = forecastRes.data.data.reduce((sum: number, hour: any) => {
           const energy = hour.predicted_output_kWh || hour.energy_output_kWh || 0
           return sum + (typeof energy === 'number' ? energy : parseFloat(energy) || 0)
         }, 0)
       }
 
-      // If no forecast data, fetch current weather and estimate
       if (totalEnergyToday === 0) {
         const currentRes = await axios.get(`${API_BASE_URL}/realtime/current`, {
           params: {
             lat: config.latitude,
             lon: config.longitude,
             system_size: config.systemSize,
-            performance_ratio: config.performanceRatio
-          }
+            performance_ratio: config.performanceRatio,
+            panel_tilt: config.panelTilt,
+            panel_azimuth: config.panelAzimuth
+          },
         }).catch(() => null)
 
         if (currentRes?.data?.data?.energy_output_kWh) {
-          // Estimate daily based on current hour output * daylight hours
-          totalEnergyToday = currentRes.data.data.energy_output_kWh * 8 // ~8 productive hours
+          const daylightHours = currentRes.data.data.daylight_hours || 6
+          totalEnergyToday = currentRes.data.data.energy_output_kWh * daylightHours
         }
       }
 
-      // Calculate environmental metrics using user's config
-      const co2Factor = config.gridCO2Factor || 0.70 // kg CO2 per kWh
+      const co2Factor = config.gridCO2Factor || 0.70
       const co2Avoided = totalEnergyToday * co2Factor
-
-      // Trees absorb ~21kg CO2/year = ~0.058 kg/day
+      // Tree absorbs ~21 kg CO₂/year — daily equivalent = 21/365 ≈ 0.058 kg
       const treesEquivalent = co2Avoided / 0.058
-
-      // Average car emits ~0.12 kg CO2/km
       const kmDriven = co2Avoided / 0.12
 
-      // Financial savings - store in USD for conversion
-      const savingsToday = totalEnergyToday * config.electricityTariff
+      // Split into self-consumed vs exported (consistent with SmartRecommendations)
+      const avgConsumptionPerHour = 1.2 // typical residential kW
+      const totalConsumption = avgConsumptionPerHour * 24
+      const selfConsumed = Math.min(totalEnergyToday, totalConsumption)
+      const exported = Math.max(0, totalEnergyToday - totalConsumption)
+      const savingsToday = (selfConsumed * config.electricityTariff) + (exported * config.feedInTariff)
 
-      setMetrics({
-        energyGenerated: totalEnergyToday,
-        co2Avoided,
-        treesEquivalent,
-        kmDriven,
-        gridCO2Factor: co2Factor,
-        savingsToday
-      })
-
-    } catch (error) {
-      console.error('Error fetching green metrics:', error)
-    } finally {
-      setLoading(false)
+      setToday({ energyGenerated: totalEnergyToday, co2Avoided, treesEquivalent, kmDriven, savingsToday })
+    } catch (err) {
+      console.error('Error fetching today metrics:', err)
     }
   }
 
-  // Convert savings to user's selected currency
-  const displaySavings = convert(metrics.savingsToday, 'USD', config.currency)
-  const displayMonthlySavings = convert(metrics.savingsToday * 30, 'USD', config.currency)
+  const fetchWallet = async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/carbon-wallet`, {
+        params: { lat: config.latitude, lon: config.longitude, grid_co2_factor: config.gridCO2Factor },
+      })
+      if (res.data?.data?.status === 'success') {
+        setWallet(res.data.data)
+      }
+    } catch (err) {
+      console.error('Error fetching carbon wallet:', err)
+    }
+  }
+
+  const displaySavings = convert(today.savingsToday, 'USD', config.currency)
+  const displayMonthlySavings = convert(today.savingsToday * 30, 'USD', config.currency)  // estimate
+
+  const displayUSD = (usd: number) => {
+    const converted = convert(usd, 'USD', config.currency)
+    return formatCurrency(converted, config.currency)
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden h-full flex flex-col">
@@ -99,17 +134,28 @@ export default function GreenMetrics() {
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              🌱 Environmental Impact
+              🌱 Environmental Impact & Carbon Wallet
             </h3>
-            <p className="text-xs text-green-100">Real-time carbon savings for {config.city}</p>
+            <p className="text-xs text-green-100">Real-time carbon savings · Lifetime credit portfolio</p>
           </div>
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-md text-sm transition-colors"
-          >
-            <span>{isOpen ? 'Collapse' : 'Expand'}</span>
-            {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </button>
+          <div className="flex items-center space-x-2">
+            <BoxGuide title="Environmental Impact & Carbon Wallet">
+              <p>This module visualizes the ecological benefits of your solar generation and tracks your earned carbon credits.</p>
+              <ul className="space-y-3 mt-3">
+                <li><strong>Today's Impact:</strong> Shows energy generated today, the financial savings, and the exact amount of CO₂ emissions avoided (calculated using your local Grid CO₂ Factor).</li>
+                <li><strong>Wallet Balance:</strong> The total monetary value of your carbon credits earned over the lifetime of the system, based on current real-world carbon market prices.</li>
+                <li><strong>Lifetime Equivalents:</strong> Translates your avoided CO₂ into tangible metrics such as "Tree-years planted" (trees needed to absorb that much CO₂ in a year) and "Car kilometers avoided".</li>
+                <li><strong>Monthly Ledger:</strong> A breakdown of historical energy generation, CO₂ avoided, and corresponding carbon credit value on a monthly basis.</li>
+              </ul>
+            </BoxGuide>
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="flex items-center space-x-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-md text-sm transition-colors"
+            >
+              <span>{isOpen ? 'Collapse' : 'Expand'}</span>
+              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -120,90 +166,91 @@ export default function GreenMetrics() {
             <div className="animate-pulse text-center py-8 text-gray-400">Loading real data...</div>
           ) : (
             <>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {/* Energy Generated */}
-                <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-100">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Zap className="w-5 h-5 text-yellow-500" />
-                    <span className="text-xs text-gray-600">Generated Today</span>
+              {/* ── Today's Impact ── */}
+              <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">☀️ Today</p>
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-3 border border-yellow-100">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Zap className="w-4 h-4 text-yellow-500" />
+                    <span className="text-[11px] text-gray-500">Generated</span>
                   </div>
-                  <div className="text-xl font-bold text-gray-800">
-                    {metrics.energyGenerated.toFixed(1)} kWh
-                  </div>
-                  <div className="text-xs text-green-600 mt-1">
-                    {formatCurrency(displaySavings, config.currency)} saved
-                  </div>
+                  <p className="text-lg font-bold text-gray-800">{today.energyGenerated.toFixed(1)} kWh</p>
+                  <p className="text-[10px] text-green-600">{formatCurrency(displaySavings, config.currency)} saved</p>
                 </div>
 
-                {/* CO2 Avoided */}
-                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border border-green-100">
-                  <div className="flex items-center gap-2 mb-2">
-                    <TrendingDown className="w-5 h-5 text-green-500" />
-                    <span className="text-xs text-gray-600">CO₂ Avoided</span>
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-3 border border-green-100">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <TrendingDown className="w-4 h-4 text-green-500" />
+                    <span className="text-[11px] text-gray-500">CO₂ Avoided</span>
                   </div>
-                  <div className="text-xl font-bold text-green-700">
-                    {metrics.co2Avoided.toFixed(1)} kg
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    @ {(metrics.gridCO2Factor * 1000).toFixed(0)} g/kWh
-                  </div>
-                </div>
-
-                {/* Trees Equivalent */}
-                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg p-4 border border-emerald-100">
-                  <div className="flex items-center gap-2 mb-2">
-                    <TreePine className="w-5 h-5 text-emerald-500" />
-                    <span className="text-xs text-gray-600">Trees Equivalent</span>
-                  </div>
-                  <div className="text-xl font-bold text-gray-800">
-                    {metrics.treesEquivalent.toFixed(1)} 🌳
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">tree-days</div>
-                </div>
-
-                {/* Driving Offset */}
-                <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-100">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Leaf className="w-5 h-5 text-blue-500" />
-                    <span className="text-xs text-gray-600">Driving Offset</span>
-                  </div>
-                  <div className="text-xl font-bold text-gray-800">
-                    {metrics.kmDriven.toFixed(0)} km
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">car equivalent</div>
+                  <p className="text-lg font-bold text-green-700">{today.co2Avoided.toFixed(1)} kg</p>
+                  <p className="text-[10px] text-gray-400">@ {(config.gridCO2Factor * 1000).toFixed(0)} g/kWh</p>
                 </div>
               </div>
 
-              {/* Impact Summary */}
-              <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-100">
-                <h4 className="font-semibold text-sm text-gray-700 mb-2">Your System's Impact</h4>
-                <div className="space-y-2 text-sm text-gray-600">
-                  <div className="flex items-center justify-between">
-                    <span>☀️ System Size:</span>
-                    <span className="font-semibold">{config.systemSize} kWp</span>
+              {/* ── Lifetime Carbon Wallet ── */}
+              {wallet && (
+                <>
+                  <p className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-2">🌍 Carbon Credit Wallet — Lifetime</p>
+
+                  {/* Wallet Balance */}
+                  <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl p-4 border border-teal-200 mb-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-gray-400 uppercase">Wallet Balance</p>
+                      <p className="text-2xl font-bold text-teal-700">
+                        {displayUSD(wallet.lifetime.total_credit_value_usd)}
+                      </p>
+                      <p className="text-[10px] text-gray-400">
+                        @ {displayUSD(wallet.credit_rate.price_per_ton_usd)}/ton • {wallet.credit_rate.source}
+                      </p>
+                    </div>
+                    <div className="text-right space-y-1">
+                      <p className="text-sm">
+                        <span className="text-gray-400">CO₂: </span>
+                        <span className="font-semibold text-green-700">{wallet.lifetime.total_co2_avoided_kg.toFixed(1)} kg</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-gray-400">🌳 </span>
+                        <span className="font-semibold">{wallet.equivalents.trees_year_equivalent.toFixed(0)} tree-yrs</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-gray-400">🚗 </span>
+                        <span className="font-semibold">{wallet.equivalents.car_km_avoided.toFixed(0)} km</span>
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span>⚡ Grid CO₂ Factor:</span>
-                    <span className="font-semibold">{(config.gridCO2Factor * 1000).toFixed(0)} g/kWh</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>💰 Monthly Projection:</span>
-                    <span className="font-semibold text-green-600">
-                      {formatCurrency(displayMonthlySavings, config.currency)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-400">
-                    <span>Currency:</span>
-                    <span>{config.currency}</span>
-                  </div>
+
+                  {/* Monthly Ledger */}
+                  {wallet.monthly_breakdown.length > 0 && (
+                    <div className="space-y-1 max-h-28 overflow-y-auto">
+                      {wallet.monthly_breakdown.map((m, i) => (
+                        <div key={i} className="flex items-center justify-between bg-gray-50 rounded px-3 py-1.5 text-xs">
+                          <span className="font-medium text-gray-600">{m.month}</span>
+                          <span className="text-gray-400">{m.energy_kwh.toFixed(1)} kWh</span>
+                          <span className="text-gray-500">{m.co2_kg.toFixed(1)} kg CO₂</span>
+                          <span className="text-teal-600 font-semibold">{displayUSD(m.credit_usd)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* System Info + Monthly Projection */}
+              <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border border-green-100">
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <span>☀️ {config.systemSize} kWp · ⚡ {(config.gridCO2Factor * 1000).toFixed(0)} g/kWh</span>
+                  <span className="font-semibold text-green-600">
+                    Monthly (est.): {formatCurrency(displayMonthlySavings, config.currency)}
+                  </span>
                 </div>
               </div>
 
               {/* Green Badge */}
-              <div className="mt-4 flex items-center justify-center gap-2 p-3 bg-green-100 rounded-lg border-2 border-green-300">
-                <Leaf className="w-5 h-5 text-green-700" />
-                <span className="text-sm font-semibold text-green-800">
-                  {metrics.co2Avoided > 0 ? 'Net Positive Environmental Impact ✓' : 'Run forecast to see impact'}
+              <div className="mt-3 flex items-center justify-center gap-2 p-2.5 bg-green-100 rounded-lg border-2 border-green-300">
+                <Leaf className="w-4 h-4 text-green-700" />
+                <span className="text-xs font-semibold text-green-800">
+                  {today.co2Avoided > 0 ? 'Net Positive Environmental Impact ✓' : 'Run forecast to see impact'}
                 </span>
               </div>
             </>

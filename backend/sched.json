@@ -1,0 +1,78 @@
+{
+  "high_energy_appliances": [
+    {
+      "appliance": "Electric Vehicle Charging",
+      "best_start_time": "10:00 AM",
+      "expected_solar_coverage": 85.6,
+      "grid_needed": 0.99,
+      "cost_savings": 0.71
+    },
+    {
+      "appliance": "Water Heater",
+      "best_start_time": "11:00 AM",
+      "expected_solar_coverage": 61.9,
+      "grid_needed": 1.52,
+      "cost_savings": 0.3
+    },
+    {
+      "appliance": "Clothes Dryer",
+      "best_start_time": "12:00 PM",
+      "expected_solar_coverage": 41.9,
+      "grid_needed": 1.74,
+      "cost_savings": 0.15
+    },
+    {
+      "appliance": "Air Conditioner (Main)",
+      "best_start_time": "11:00 AM",
+      "expected_solar_coverage": 100.0,
+      "grid_needed": 0,
+      "cost_savings": 0.42
+    },
+    {
+      "appliance": "Something New",
+      "best_start_time": "10:00 AM",
+      "expected_solar_coverage": 11.8,
+      "grid_needed": 44.09,
+      "cost_savings": 0.71
+    }
+  ],
+  "medium_energy_appliances": [
+    {
+      "appliance": "Dishwasher",
+      "best_start_time": "11:00 AM",
+      "expected_solar_coverage": 100.0,
+      "grid_needed": 0,
+      "cost_savings": 0.22
+    },
+    {
+      "appliance": "Washing Machine",
+      "best_start_time": "12:00 PM",
+      "expected_solar_coverage": 83.8,
+      "grid_needed": 0.24,
+      "cost_savings": 0.15
+    }
+  ],
+  "flexible_loads": [
+    {
+      "appliance": "Laptop Charging",
+      "best_start_time": "11:00 AM",
+      "expected_solar_coverage": 100.0,
+      "grid_needed": 0,
+      "cost_savings": 0.01
+    },
+    {
+      "appliance": "Vacuum Cleaner",
+      "best_start_time": "12:00 PM",
+      "expected_solar_coverage": 100.0,
+      "grid_needed": 0,
+      "cost_savings": 0.1
+    },
+    {
+      "appliance": "Slow Cooker",
+      "best_start_time": "09:00 AM",
+      "expected_solar_coverage": 100.0,
+      "grid_needed": 0,
+      "cost_savings": 0.08
+    }
+  ]
+}

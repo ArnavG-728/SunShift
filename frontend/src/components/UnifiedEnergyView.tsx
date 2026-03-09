@@ -46,7 +46,7 @@ const UnifiedEnergyView = () => {
         fetchAllData();
         const interval = setInterval(fetchAllData, 30000); // Update every 30s
         return () => clearInterval(interval);
-    }, [config.latitude, config.longitude, config.systemSize, config.batteryCapacity]);
+    }, [config.latitude, config.longitude, config.systemSize, config.batteryCapacity, config.hasBattery, config.performanceRatio, config.panelTilt, config.panelAzimuth]);
 
     const fetchAllData = async () => {
         try {
@@ -56,7 +56,9 @@ const UnifiedEnergyView = () => {
                     lat: config.latitude,
                     lon: config.longitude,
                     system_size: config.systemSize,
-                    performance_ratio: config.performanceRatio
+                    performance_ratio: config.performanceRatio,
+                    panel_tilt: config.panelTilt,
+                    panel_azimuth: config.panelAzimuth
                 }
             }).catch(() => null);
 
@@ -71,7 +73,10 @@ const UnifiedEnergyView = () => {
                     lon: config.longitude,
                     system_size: config.systemSize,
                     has_battery: config.hasBattery,
-                    battery_capacity: config.batteryCapacity
+                    battery_capacity: config.batteryCapacity,
+                    performance_ratio: config.performanceRatio,
+                    panel_tilt: config.panelTilt,
+                    panel_azimuth: config.panelAzimuth
                 }
             }).catch(() => null);
 
@@ -187,10 +192,10 @@ const UnifiedEnergyView = () => {
                         <Car className="text-blue-500" /> Transport
                     </h3>
                     <span className={`text-xs px-2 py-1 rounded-full font-medium ${transport.charging_status === 'Charging'
-                            ? 'bg-green-100 text-green-700'
-                            : transport.charging_status === 'Standby'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-gray-100 text-gray-600'
+                        ? 'bg-green-100 text-green-700'
+                        : transport.charging_status === 'Standby'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-600'
                         }`}>
                         {transport.charging_status}
                     </span>
@@ -209,7 +214,7 @@ const UnifiedEnergyView = () => {
                     <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                         <div
                             className={`h-full transition-all duration-1000 ${transport.ev_charge_percent > 50 ? 'bg-gradient-to-r from-blue-400 to-cyan-400' :
-                                    transport.ev_charge_percent > 20 ? 'bg-yellow-400' : 'bg-red-400'
+                                transport.ev_charge_percent > 20 ? 'bg-yellow-400' : 'bg-red-400'
                                 }`}
                             style={{ width: `${transport.ev_charge_percent}%` }}
                         />

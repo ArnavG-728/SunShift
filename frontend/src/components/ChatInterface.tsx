@@ -56,7 +56,9 @@ export default function ChatInterface() {
           lat: config.latitude,
           lon: config.longitude,
           system_size: config.systemSize,
-          performance_ratio: config.performanceRatio
+          performance_ratio: config.performanceRatio,
+          panel_tilt: config.panelTilt,
+          panel_azimuth: config.panelAzimuth
         }
       })
       if (response.data.status === 'success') {

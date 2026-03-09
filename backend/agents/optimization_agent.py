@@ -58,6 +58,15 @@ class OptimizationAgent:
         
         df = pd.DataFrame(hourly_forecast)
         
+        # Filter to future-only hours so we never recommend past times
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        now = datetime.now().replace(minute=0, second=0, microsecond=0)
+        df = df[df['timestamp'] >= now].reset_index(drop=True)
+        
+        if len(df) == 0:
+            logger.warning("No future hours in forecast data after filtering")
+            return self._empty_recommendations()
+        
         # Ensure we have the required column
         energy_col = 'predicted_output_kWh' if 'predicted_output_kWh' in df.columns else 'energy_output_kWh'
         
@@ -210,7 +219,7 @@ class OptimizationAgent:
                     'appliance': appliance['name'],
                     'best_start_time': best_time['start_time'],
                     'expected_solar_coverage': best_time['coverage_percent'],
-                    'grid_needed_kwh': best_time['grid_needed'],
+                    'grid_needed': best_time['grid_needed'],
                     'cost_savings': best_time['savings']
                 }
                 
@@ -230,26 +239,38 @@ class OptimizationAgent:
             return None
         
         best_window = None
-        best_coverage = 0
+        best_coverage = -1
+        max_excess_solar = -float('inf')
+        
+        # Power drawn per hour (assuming constant draw)
+        hourly_consumption = consumption_kwh / duration_hours
         
         # Slide window through forecast
         for i in range(len(df) - duration_hours + 1):
             window = df.iloc[i:i+duration_hours]
+            
+            # Calculate coverage on an hourly basis
+            hourly_coverage = [min(row[energy_col], hourly_consumption) for _, row in window.iterrows()]
+            total_coverage = sum(hourly_coverage)
+            coverage_percent = (total_coverage / consumption_kwh) * 100
+            
+            # Calculate total excess solar in this window (to center the load during peak sun)
             total_solar = window[energy_col].sum()
+            excess_solar = total_solar - consumption_kwh
             
-            # Calculate how much of the consumption can be covered by solar
-            coverage = min(total_solar, consumption_kwh)
-            coverage_percent = (coverage / consumption_kwh) * 100
-            
-            if coverage_percent > best_coverage:
+            # We prefer the window that gives the highest coverage.
+            # If multiple windows give the same (e.g., 100%) coverage, we pick the one with the MOST excess solar.
+            # This ensures we schedule exactly during the peak of the day rather than at the edges.
+            if coverage_percent > best_coverage or (abs(coverage_percent - best_coverage) < 0.1 and excess_solar > max_excess_solar):
                 best_coverage = coverage_percent
-                grid_needed = max(0, consumption_kwh - total_solar)
+                max_excess_solar = excess_solar
+                grid_needed = max(0, consumption_kwh - total_coverage)
                 
                 best_window = {
                     'start_time': pd.to_datetime(window.iloc[0]['timestamp']).strftime('%I:%M %p'),
                     'coverage_percent': round(coverage_percent, 1),
                     'grid_needed': round(grid_needed, 2),
-                    'savings': round((coverage / consumption_kwh) * consumption_kwh * self.electricity_tariff, 2)
+                    'savings': round(total_coverage * self.electricity_tariff, 2)
                 }
         
         return best_window
@@ -307,7 +328,7 @@ class OptimizationAgent:
         
         # Calculate average household consumption based on system size
         # Rule of thumb: residential consumption ≈ 0.8 * system_size per hour
-        avg_consumption_per_hour = 0.8 * self.system_size if self.system_size > 0 else 1.2
+        avg_consumption_per_hour = 1.2  # realistic average residential consumption (kW)
         total_consumption = avg_consumption_per_hour * len(df)
         
         surplus = total_production - total_consumption
@@ -334,12 +355,16 @@ class OptimizationAgent:
         """Calculate potential cost savings"""
         total_solar = df[energy_col].sum()
         
-        # Savings from not buying from grid
-        grid_cost_avoided = total_solar * self.electricity_tariff
+        # Split solar into self-consumed vs exported
+        avg_consumption_per_hour = 1.2  # typical residential kW
+        total_consumption = avg_consumption_per_hour * len(df)
+        self_consumed = min(total_solar, total_consumption)
+        exported = max(0, total_solar - total_consumption)
         
-        # Potential revenue from export (assume 30% can be exported)
-        exportable = total_solar * 0.3
-        export_revenue = exportable * self.feed_in_tariff
+        # Savings from self-consumption (avoided grid purchase)
+        grid_cost_avoided = self_consumed * self.electricity_tariff
+        # Revenue from exporting surplus
+        export_revenue = exported * self.feed_in_tariff
         
         total_savings = grid_cost_avoided + export_revenue
         
@@ -360,15 +385,16 @@ class OptimizationAgent:
         co2_avoided_kg = total_solar * self.grid_co2_factor
         co2_avoided_tons = co2_avoided_kg / 1000
         
-        # Equivalents for context
-        trees_equivalent = co2_avoided_kg / 21  # 1 tree absorbs ~21kg CO2/year
-        car_miles_equivalent = co2_avoided_kg / 0.404  # 1 mile = ~0.404kg CO2
+        # Equivalents for context (consistent with GreenMetrics & CarbonWallet)
+        trees_daily_absorption = 21 / 365  # ~0.0575 kg CO2 per tree per day
+        trees_equivalent = co2_avoided_kg / trees_daily_absorption
+        car_km_equivalent = co2_avoided_kg / 0.12  # 1 km = ~0.12 kg CO2
         
         return {
             'co2_avoided_kg': round(co2_avoided_kg, 2),
             'co2_avoided_tons': round(co2_avoided_tons, 4),
             'trees_equivalent': round(trees_equivalent, 2),
-            'car_miles_avoided': round(car_miles_equivalent, 1),
+            'car_km_avoided': round(car_km_equivalent, 1),
             'monthly_projection_kg': round(co2_avoided_kg * 30 / max(1, len(df) / 24), 2)
         }
     
