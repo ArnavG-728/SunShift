@@ -3,13 +3,18 @@ import pandas as pd
 from datetime import datetime, timezone
 from typing import Dict, Tuple
 
-def calculate_solar_position(timestamp: datetime, lat: float, lon: float = 0.0) -> Tuple[float, float, float]:
+def calculate_solar_position(timestamp, lat: float, lon: float = 0.0) -> Tuple[float, float, float]:
     """
     Calculate sun's position accurately based on time and location.
-    Handles timezone-naive local timestamps representing UTC correctly.
+    Handles timezone-naive local timestamps correctly.
     Returns: (elevation, azimuth, declination) in degrees.
     """
     # 1. Get true UTC time from the timestamp
+    # IMPORTANT: pandas Timestamp.timestamp() treats tz-naive as UTC,
+    # but datetime.timestamp() treats tz-naive as local time.
+    # We must convert to plain datetime first for correct local->UTC conversion.
+    if hasattr(timestamp, 'to_pydatetime'):
+        timestamp = timestamp.to_pydatetime()
     unix_time = timestamp.timestamp()
     utc_dt = datetime.fromtimestamp(unix_time, tz=timezone.utc)
     

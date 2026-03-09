@@ -661,8 +661,10 @@ class RealWeatherSolarForecaster:
             logger.info(f"  Energy range: {predictions_df['predicted_output_kWh'].min():.2f} - {predictions_df['predicted_output_kWh'].max():.2f} kWh")
             logger.info(f"  Total energy: {predictions_df['predicted_output_kWh'].sum():.1f} kWh")
         
-        # Create multi-horizon views
-        hourly_24h = predictions_df.head(24).to_dict(orient='records')
+        # Create multi-horizon views (start from current hour, not from beginning of data)
+        now = datetime.now().replace(minute=0, second=0, microsecond=0)
+        future_df = predictions_df[predictions_df['timestamp'] >= now]
+        hourly_24h = future_df.head(24).to_dict(orient='records')
         
         # Daily aggregation (7 days)
         daily_data = []

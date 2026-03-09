@@ -58,6 +58,15 @@ class OptimizationAgent:
         
         df = pd.DataFrame(hourly_forecast)
         
+        # Filter to future-only hours so we never recommend past times
+        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        now = datetime.now().replace(minute=0, second=0, microsecond=0)
+        df = df[df['timestamp'] >= now].reset_index(drop=True)
+        
+        if len(df) == 0:
+            logger.warning("No future hours in forecast data after filtering")
+            return self._empty_recommendations()
+        
         # Ensure we have the required column
         energy_col = 'predicted_output_kWh' if 'predicted_output_kWh' in df.columns else 'energy_output_kWh'
         
