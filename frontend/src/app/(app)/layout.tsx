@@ -318,9 +318,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Floating User Guide */}
-      <div className={isMobile ? 'mb-20' : ''}>
-        <UserGuide />
-      </div>
+      <UserGuide />
     </div>
   )
 }
