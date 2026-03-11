@@ -7,8 +7,6 @@ import UnifiedEnergyView from './UnifiedEnergyView'
 import { useSystemConfig } from '@/lib/SystemConfigContext'
 
 // Imported subcomponents
-import RiskScoreCard from './EnhancedDashboard/RiskScoreCard'
-import CloudImpactCard from './EnhancedDashboard/CloudImpactCard'
 import SimpleModeView from './EnhancedDashboard/SimpleModeView'
 import InsightsPanel from './EnhancedDashboard/InsightsPanel'
 import ForecastChart from './EnhancedDashboard/ForecastChart'
@@ -214,17 +212,11 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
 
       {!simpleMode && <UnifiedEnergyView />}
 
-      {/* Innovation Section: Risk & Cloud Impact */}
-      {!simpleMode && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <RiskScoreCard riskData={riskData} />
-          <CloudImpactCard currentWeather={currentWeather} />
-        </div>
-      )}
+      {/* Removing Risk & Cloud Impact sections per user request */}
 
       {/* Conditional Rendering for Simple/Power Mode */}
       {simpleMode ? (
-        <SimpleModeView currentWeather={currentWeather} />
+        <SimpleModeView currentWeather={currentWeather} daily7d={daily7d} />
       ) : (
         <>
           {/* Header Controls */}
