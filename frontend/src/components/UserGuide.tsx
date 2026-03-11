@@ -86,29 +86,29 @@ export default function UserGuide() {
 
     return (
         <>
-            {/* Floating Guide Button */}
+            {/* Floating Guide Button — raised on mobile to clear bottom nav */}
             <button
                 onClick={() => setIsOpen(true)}
-                className="fixed bottom-6 right-6 bg-gradient-to-r from-blue-500 to-purple-500 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 z-40"
+                className="fixed bottom-[88px] right-4 sm:bottom-6 sm:right-6 bg-gradient-to-r from-blue-500 to-purple-500 text-white p-3 sm:p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 z-30"
                 title="How to use SunShift"
             >
-                <HelpCircle className="w-6 h-6" />
+                <HelpCircle className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
 
             {/* Guide Modal */}
             {isOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] overflow-hidden">
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4">
+                    <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] sm:max-h-[85vh] overflow-hidden">
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-6 text-white">
+                        <div className="bg-gradient-to-r from-blue-500 to-purple-500 p-4 sm:p-6 text-white">
                             <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="bg-white/20 p-2 rounded-lg">
-                                        <HelpCircle className="w-6 h-6" />
+                                <div className="flex items-center gap-2.5 sm:gap-3">
+                                    <div className="bg-white/20 p-1.5 sm:p-2 rounded-lg">
+                                        <HelpCircle className="w-5 h-5 sm:w-6 sm:h-6" />
                                     </div>
                                     <div>
-                                        <h2 className="text-2xl font-bold">SunShift User Guide</h2>
-                                        <p className="text-blue-100 text-sm">Understanding what each value does</p>
+                                        <h2 className="text-lg sm:text-2xl font-bold">SunShift User Guide</h2>
+                                        <p className="text-blue-100 text-xs sm:text-sm">Understanding what each value does</p>
                                     </div>
                                 </div>
                                 <button
@@ -121,7 +121,7 @@ export default function UserGuide() {
                         </div>
 
                         {/* Content */}
-                        <div className="overflow-y-auto max-h-[calc(85vh-120px)] p-6">
+                        <div className="overflow-y-auto max-h-[calc(90vh-100px)] sm:max-h-[calc(85vh-120px)] p-4 sm:p-6">
                             <div className="mb-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
                                 <h3 className="font-semibold text-green-800 mb-2">🔄 Real-Time Data Flow</h3>
                                 <p className="text-sm text-green-700">
@@ -177,7 +177,7 @@ export default function UserGuide() {
                             {/* Quick Reference */}
                             <div className="mt-6 p-4 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border border-amber-100">
                                 <h3 className="font-semibold text-amber-800 mb-3">⚡ Quick Reference</h3>
-                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-sm">
                                     <div className="p-2 bg-white rounded-lg">
                                         <span className="text-gray-500">1 kWp system →</span>
                                         <span className="font-semibold text-gray-800 ml-1">3-5 kWh/day</span>
