@@ -7,7 +7,7 @@ interface LocationSelectorProps {
   latitude: number
   longitude: number
   city: string
-  onLocationChange: (location: { latitude: number; longitude: number; city: string }) => void
+  onLocationChange: (location: { latitude: number; longitude: number; city: string; timezone?: string }) => void
 }
 
 interface SearchResult {
@@ -91,11 +91,13 @@ export default function LocationSelector({
             )
             const data = await response.json()
             const cityName = data.address?.city || data.address?.town || data.address?.village || 'Unknown Location'
+            const timezone = data.timezone
             
             onLocationChange({
               latitude: lat,
               longitude: lon,
-              city: cityName
+              city: cityName,
+              timezone: timezone
             })
             
             setIsOpen(false)
@@ -123,13 +125,27 @@ export default function LocationSelector({
     setSearchQuery('')
     setSearchResults([])
     
-    onLocationChange({
-      latitude: lat,
-      longitude: lon,
-      city: result.name || result.display_name.split(',')[0]
-    })
-    
-    setIsOpen(false)
+    // For search result, we need to geocode to get timezone
+    fetch(`/api/geocode/reverse?lat=${lat}&lon=${lon}`)
+      .then(res => res.json())
+      .then(data => {
+        onLocationChange({
+          latitude: lat,
+          longitude: lon,
+          city: result.name || result.display_name.split(',')[0],
+          timezone: data.timezone
+        })
+      })
+      .catch((err) => {
+        onLocationChange({
+          latitude: lat,
+          longitude: lon,
+          city: result.name || result.display_name.split(',')[0]
+        })
+      })
+      .finally(() => {
+        setIsOpen(false)
+      })
   }
 
   const handleMapClick = async (e: React.MouseEvent<HTMLDivElement>) => {
@@ -157,11 +173,13 @@ export default function LocationSelector({
       )
       const data = await response.json()
       const cityName = data.address?.city || data.address?.town || data.address?.village || 'Custom Location'
+      const timezone = data.timezone
       
       onLocationChange({
         latitude: lat,
         longitude: lon,
-        city: cityName
+        city: cityName,
+        timezone: timezone
       })
     } catch (error) {
       console.error('Error reverse geocoding:', error)

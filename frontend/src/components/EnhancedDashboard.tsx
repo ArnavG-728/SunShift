@@ -216,7 +216,7 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
 
       {/* Innovation Section: Risk & Cloud Impact */}
       {!simpleMode && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <RiskScoreCard riskData={riskData} />
           <CloudImpactCard currentWeather={currentWeather} />
         </div>
@@ -224,7 +224,7 @@ export default function EnhancedDashboard(props: EnhancedDashboardProps = {}) {
 
       {/* Conditional Rendering for Simple/Power Mode */}
       {simpleMode ? (
-        <SimpleModeView currentWeather={currentWeather} />
+        <SimpleModeView currentWeather={currentWeather} daily7d={daily7d} />
       ) : (
         <>
           {/* Header Controls */}

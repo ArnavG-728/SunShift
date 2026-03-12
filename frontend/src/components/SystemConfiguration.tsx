@@ -78,12 +78,13 @@ export default function SystemConfiguration() {
     }
   }
 
-  const handleLocationChange = (location: { latitude: number; longitude: number; city: string }) => {
+  const handleLocationChange = (location: { latitude: number; longitude: number; city: string; timezone?: string }) => {
     // Update pending location
     updatePendingConfig({
       latitude: location.latitude,
       longitude: location.longitude,
-      city: location.city
+      city: location.city,
+      ...(location.timezone ? { timezone: location.timezone } : {})
     })
   }
 
@@ -138,6 +139,7 @@ export default function SystemConfiguration() {
                   {config.systemSize} kWp
                 </span>
                 <span className="text-xs text-teal-100">• {config.city}</span>
+                <span className="text-xs text-teal-100">• {config.timezone}</span>
                 <span className="text-xs px-2 py-0.5 bg-green-500/50 text-white rounded-full animate-pulse">
                   Live Updates
                 </span>

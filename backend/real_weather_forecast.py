@@ -68,6 +68,8 @@ class RealWeatherSolarForecaster:
             response.raise_for_status()
             data = response.json()
             
+            tz_offset_sec = data.get("city", {}).get("timezone", 0)
+            
             forecast_data = []
             for item in data['list']:
                 # Extract detailed parameters based on OpenWeather API and parameters.csv
@@ -79,8 +81,13 @@ class RealWeatherSolarForecaster:
                 sys = item.get('sys', {})
                 weather = item.get('weather', [{}])[0]
                 
+                utc_time = datetime.utcfromtimestamp(item['dt'])
+                local_time = utc_time + timedelta(seconds=tz_offset_sec)
+                
                 forecast_data.append({
-                    'timestamp': datetime.fromtimestamp(item['dt']),
+                    'timestamp': local_time,
+                    'utc_time': utc_time.isoformat(),
+                    'timezone_offset': tz_offset_sec,
                     'temperature': main.get('temp'),
                     'temp_min': main.get('temp_min'),
                     'temp_max': main.get('temp_max'),
@@ -602,7 +609,9 @@ class RealWeatherSolarForecaster:
                 'angle_of_incidence': solar_data['angle_of_incidence'],
                 'predicted_output_kWh': energy,
                 'confidence_lower': energy * 0.85,
-                'confidence_upper': energy * 1.15
+                'confidence_upper': energy * 1.15,
+                'timezone_offset': row.get('timezone_offset', 0),
+                'utc_time': row.get('utc_time', '')
             })
         
         predictions_df = pd.DataFrame(predictions)
@@ -651,7 +660,9 @@ class RealWeatherSolarForecaster:
                     'angle_of_incidence': solar_data['angle_of_incidence'],
                     'predicted_output_kWh': energy,
                     'confidence_lower': energy * 0.85,
-                    'confidence_upper': energy * 1.15
+                    'confidence_upper': energy * 1.15,
+                    'timezone_offset': row.get('timezone_offset', 0),
+                    'utc_time': row.get('utc_time', '')
                 })
             predictions_df = pd.DataFrame(predictions)
         

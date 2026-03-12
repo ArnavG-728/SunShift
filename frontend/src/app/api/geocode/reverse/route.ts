@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { find } from 'geo-tz'
 
 // Rate limiting: track last request time
 let lastRequestTime = 0
@@ -44,6 +45,17 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json()
+    
+    // Lookup timezone
+    try {
+      const tzNames = find(parseFloat(lat), parseFloat(lon))
+      if (tzNames && tzNames.length > 0) {
+        data.timezone = tzNames[0]
+      }
+    } catch (tzError) {
+      console.error('Error finding timezone:', tzError)
+    }
+    
     return NextResponse.json(data)
   } catch (error) {
     console.error('Error fetching from Nominatim:', error)

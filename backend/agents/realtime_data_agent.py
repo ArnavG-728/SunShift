@@ -142,11 +142,18 @@ class RealTimeDataAgent:
             
             data = response.json()
             
+            # Get timezone offset
+            tz_offset_sec = data.get("city", {}).get("timezone", 0)
+            
             # Process forecast data
             forecast = []
             for item in data["list"][:hours//3]:  # 3-hour intervals
+                utc_time = datetime.utcfromtimestamp(item["dt"])
+                local_time = utc_time + timedelta(seconds=tz_offset_sec)
                 point = {
-                    "timestamp": datetime.fromtimestamp(item["dt"]),
+                    "timestamp": local_time,
+                    "utc_time": utc_time.isoformat(),
+                    "timezone_offset": tz_offset_sec,
                     "temperature": item["main"]["temp"],
                     "humidity": item["main"]["humidity"],
                     "pressure": item["main"]["pressure"],

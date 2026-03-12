@@ -21,6 +21,7 @@ export default function Dashboard() {
     const [activeTab, setActiveTab] = useState<'dashboard' | 'recommendations' | 'chat'>('dashboard')
     const [mounted, setMounted] = useState(false)
     const [isNight, setIsNight] = useState(false)
+    const [currentTime, setCurrentTime] = useState<Date | null>(null)
     const { config, isLoading } = useSystemConfig()
 
     // Fetch day/night status based on location
@@ -55,7 +56,29 @@ export default function Dashboard() {
 
     useEffect(() => {
         setMounted(true)
+        setCurrentTime(new Date())
+        const timer = setInterval(() => {
+            setCurrentTime(new Date())
+        }, 1000)
+        return () => clearInterval(timer)
     }, [])
+
+    // Time formatting helpers
+    const formatTime = (date: Date, tz: string) => {
+        try {
+            return new Intl.DateTimeFormat('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: tz
+            }).format(date)
+        } catch (e) {
+            return ''
+        }
+    }
+
+    const localTimeStr = currentTime ? formatTime(currentTime, config.timezone || 'UTC') : ''
+    const gmtTimeStr = currentTime ? formatTime(currentTime, 'UTC') : ''
+    const istTimeStr = currentTime ? formatTime(currentTime, 'Asia/Kolkata') : ''
 
     // Dynamic background classes based on day/night
     const bgClasses = isNight
@@ -89,10 +112,15 @@ export default function Dashboard() {
                                     ? 'bg-gradient-to-r from-indigo-400 to-purple-400'
                                     : 'bg-gradient-to-r from-orange-600 to-yellow-500'
                                     }`}>SunShift</h1>
-                                <p className={`text-xs sm:text-sm hidden sm:block transition-colors duration-500 ${isNight ? 'text-slate-400' : 'text-gray-500'
+                                <p className={`text-xs mt-0.5 sm:text-sm transition-colors duration-500 ${isNight ? 'text-slate-400' : 'text-gray-500'
                                     }`}>
-                                    {isLoading ? 'Loading...' : `${config.city} • ${config.systemSize} kWp System`}
+                                    {isLoading ? 'Loading...' : `${config.city} (${config.timezone}) • ${config.systemSize} kWp`}
                                 </p>
+                                {mounted && currentTime && !isLoading && (
+                                    <p className={`text-xs mt-0.5 transition-colors duration-500 ${isNight ? 'text-slate-500' : 'text-gray-400'}`}>
+                                        {localTimeStr} (Local) | {gmtTimeStr} GMT / {istTimeStr} IST
+                                    </p>
+                                )}
                             </div>
                         </div>
 

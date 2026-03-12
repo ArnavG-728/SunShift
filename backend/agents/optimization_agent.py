@@ -259,19 +259,35 @@ class OptimizationAgent:
             excess_solar = total_solar - consumption_kwh
             
             # We prefer the window that gives the highest coverage.
-            # If multiple windows give the same (e.g., 100%) coverage, we pick the one with the MOST excess solar.
-            # This ensures we schedule exactly during the peak of the day rather than at the edges.
-            if coverage_percent > best_coverage or (abs(coverage_percent - best_coverage) < 0.1 and excess_solar > max_excess_solar):
-                best_coverage = coverage_percent
-                max_excess_solar = excess_solar
-                grid_needed = max(0, consumption_kwh - total_coverage)
-                
-                best_window = {
-                    'start_time': pd.to_datetime(window.iloc[0]['timestamp']).strftime('%I:%M %p'),
-                    'coverage_percent': round(coverage_percent, 1),
-                    'grid_needed': round(grid_needed, 2),
-                    'savings': round(total_coverage * self.electricity_tariff, 2)
-                }
+            # Only consider windows that actually have some solar coverage
+            if total_coverage > 0.01:
+                if coverage_percent > best_coverage or (abs(coverage_percent - best_coverage) < 0.1 and excess_solar > max_excess_solar):
+                    best_coverage = coverage_percent
+                    max_excess_solar = excess_solar
+                    grid_needed = max(0, consumption_kwh - total_coverage)
+                    # Extract timestamp
+                    start_ts = pd.to_datetime(window.iloc[0]['timestamp'])
+                    local_time_str = start_ts.strftime('%I:%M %p')
+                    
+                    # Add GMT / IST reference if utc_time is available
+                    time_display = local_time_str
+                    try:
+                        utc_val = window.iloc[0].get('utc_time')
+                        if not pd.isna(utc_val) and utc_val:
+                            utc_dt = pd.to_datetime(utc_val)
+                            ist_dt = utc_dt + pd.Timedelta(hours=5, minutes=30)
+                            gmt_str = utc_dt.strftime('%I:%M %p')
+                            ist_str = ist_dt.strftime('%I:%M %p')
+                            time_display = f"{local_time_str} (Local) | {gmt_str} GMT / {ist_str} IST"
+                    except Exception as e:
+                        pass
+                        
+                    best_window = {
+                        'start_time': time_display,
+                        'coverage_percent': round(coverage_percent, 1),
+                        'grid_needed': round(grid_needed, 2),
+                        'savings': round(total_coverage * self.electricity_tariff, 2)
+                    }
         
         return best_window
     

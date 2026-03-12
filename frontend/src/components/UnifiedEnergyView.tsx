@@ -131,7 +131,7 @@ const UnifiedEnergyView = () => {
     const isExporting = netFlow > 0;
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             {/* Electricity Section - Enhanced with real data */}
             <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-6 rounded-2xl border border-yellow-200 shadow-sm hover:shadow-md transition-all duration-300">
                 <div className="flex items-center justify-between mb-4">
@@ -235,49 +235,6 @@ const UnifiedEnergyView = () => {
                 </div>
             </div>
 
-            {/* Other Resources */}
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-2xl border border-purple-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold flex items-center gap-2 text-gray-800">
-                        <Droplet className="text-purple-500" /> Resources
-                    </h3>
-                    {other_resources.water_leak_alert && (
-                        <AlertTriangle className="text-red-500 animate-pulse" />
-                    )}
-                </div>
-
-                <div className="space-y-4">
-                    <div className="flex justify-between items-center p-3 bg-white/50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                            <Flame className="w-5 h-5 text-orange-500" />
-                            <span className="text-gray-700">Gas</span>
-                        </div>
-                        <p className="font-bold text-gray-800">
-                            {other_resources.gas_usage_m3.toFixed(1)} <span className="text-xs font-normal text-gray-500">m³</span>
-                        </p>
-                    </div>
-
-                    <div className="flex justify-between items-center p-3 bg-white/50 rounded-lg">
-                        <div className="flex items-center gap-2">
-                            <Droplet className="w-5 h-5 text-blue-500" />
-                            <span className="text-gray-700">Water</span>
-                        </div>
-                        <p className="font-bold text-gray-800">
-                            {other_resources.water_usage_liters.toFixed(0)} <span className="text-xs font-normal text-gray-500">L</span>
-                        </p>
-                    </div>
-
-                    <div className="mt-4 pt-4 border-t border-purple-100">
-                        <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1">System Status</p>
-                        <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${other_resources.water_leak_alert ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} />
-                            <span className={`text-xs font-medium ${other_resources.water_leak_alert ? 'text-red-600' : 'text-green-600'}`}>
-                                {other_resources.water_leak_alert ? 'Water Leak Detected!' : 'All Systems Nominal'}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 };
