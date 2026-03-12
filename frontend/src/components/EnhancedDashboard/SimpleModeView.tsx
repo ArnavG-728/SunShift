@@ -4,7 +4,11 @@ import { useSystemConfig } from '@/lib/SystemConfigContext'
 export default function SimpleModeView({ currentWeather, daily7d }: { currentWeather: any, daily7d?: any[] }) {
     const { config } = useSystemConfig()
     const electricityTariff = config?.electricityTariff || 0.12
+<<<<<<< HEAD
     const todayTotal = daily7d && daily7d.length > 0 ? daily7d[0].total : 0
+=======
+    const todayTotal = daily7d && daily7d.length > 0 ? daily7d[0].total_kwh || daily7d[0].total : 0;
+>>>>>>> dadb8469b898939895b08ce8661c88f2164da40f
 
     return (
         <div className="bg-white rounded-3xl shadow-xl p-8 border border-green-100">
